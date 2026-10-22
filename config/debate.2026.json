@@ -1,0 +1,36 @@
+{
+  "titulo": "Debate presidencial 2026",
+  "data": "2026-10-23",
+  "pais": "Brasil",
+  "candidatos": [
+    {
+      "id": "a",
+      "nome": "Flávio Bolsonaro",
+      "partido": "PL",
+      "descricao": "Senador pelo Rio de Janeiro desde 2019; antes, deputado estadual no RJ (2003–2019). Filho do ex-presidente Jair Bolsonaro.",
+      "cor": "#3b82f6"
+    },
+    {
+      "id": "b",
+      "nome": "Lula",
+      "partido": "PT",
+      "descricao": "Luiz Inácio Lula da Silva. Presidente da República (2003–2010 e desde 2023), candidato à reeleição.",
+      "cor": "#f97316"
+    }
+  ],
+  "outros_falantes": [{ "id": "mediador", "nome": "Mediação", "cor": "#94a3b8" }],
+  "contexto": "Eleição presidencial de 2026. Confira e complete: data e emissora do debate, temas esperados e fatos recentes que a redação quer que o checador tenha em mente.",
+  "fontes_preferidas": [
+    "ibge.gov.br",
+    "bcb.gov.br",
+    "tse.jus.br",
+    "portaldatransparencia.gov.br",
+    "tesourotransparente.gov.br",
+    "gov.br",
+    "camara.leg.br",
+    "senado.leg.br",
+    "ipea.gov.br",
+    "lupa.news",
+    "aosfatos.org"
+  ]
+}

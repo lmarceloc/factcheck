@@ -2,6 +2,7 @@ import { LayoutGroup, motion } from "motion/react";
 import type { CSSProperties } from "react";
 import type { SpeakerInfo } from "../../../src/shared/types";
 import { spring } from "../theme";
+import { Avatar } from "./Avatar";
 
 interface Props {
   speakers: SpeakerInfo[];
@@ -36,7 +37,7 @@ export function SpeakerBar({ speakers, current, onSelect }: Props) {
                   />
                 </motion.span>
               )}
-              <span className="speaker__avatar">{initials(s.nome)}</span>
+              <Avatar speaker={s} className="speaker__avatar" />
               <span className="speaker__text">
                 <strong>{s.nome}</strong>
                 <small>{s.partido ?? (active ? "com a palavra" : " ")}</small>
@@ -50,11 +51,4 @@ export function SpeakerBar({ speakers, current, onSelect }: Props) {
   );
 }
 
-export function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter((w) => w.length > 2 || /^[A-ZÀ-Ú]/.test(w))
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join("");
-}
+export { initials } from "./Avatar";

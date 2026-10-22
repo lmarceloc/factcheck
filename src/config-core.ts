@@ -9,6 +9,7 @@ const SpeakerSchema = z.object({
   partido: z.string().optional(),
   descricao: z.string().optional(),
   cor: z.string().default("#94a3b8"),
+  foto: z.string().optional(),
 });
 
 export const DebateConfigSchema = z.object({

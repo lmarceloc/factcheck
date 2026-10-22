@@ -11,6 +11,8 @@ export interface SpeakerInfo {
   partido?: string;
   descricao?: string;
   cor: string;
+  /** Foto oficial (URL ou caminho servido pelo site, ex.: /fotos/a.jpeg). */
+  foto?: string;
 }
 
 export interface DebateInfo {

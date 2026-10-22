@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { Claim, SpeakerInfo } from "../../src/shared/types";
 import { VERDICT_LABELS } from "../../src/shared/types";
 import { Logo } from "./components/Logo";
+import { Avatar } from "./components/Avatar";
 import { Scoreboard } from "./components/Scoreboard";
 import { VerdictBadge } from "./components/VerdictBadge";
 import { Loading } from "./Painel";
@@ -144,7 +145,7 @@ function LowerThird({ claim, speaker, seconds, pending }: { claim: Claim; speake
       </div>
       <div className="lower__body">
         <motion.div className="lower__who" initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
-          <span className="lower__bar" />
+          {speaker?.foto ? <Avatar speaker={speaker} className="lower__foto" /> : <span className="lower__bar" />}
           <strong>{speaker?.nome ?? claim.speakerId}</strong>
           {speaker?.partido && <span>{speaker.partido}</span>}
         </motion.div>
@@ -214,7 +215,10 @@ function Mural({
                   transition={{ type: "spring", stiffness: 260, damping: 24, delay: Math.min(i, 8) * 0.03 }}
                 >
                   <VerdictBadge verdict={r.veredito} />
-                  <span className="mural__who">{sp?.nome ?? c.speakerId}</span>
+                  <span className="mural__who">
+                    {sp?.foto && <Avatar speaker={sp} className="mural__foto" />}
+                    {sp?.nome ?? c.speakerId}
+                  </span>
                   <blockquote>“{c.trecho}”</blockquote>
                   <p>{r.resumo}</p>
                   <footer>

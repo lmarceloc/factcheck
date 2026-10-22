@@ -4,7 +4,7 @@ import type { Claim, SpeakerInfo, Verdict } from "../../../src/shared/types";
 import { VERDICTS, VERDICT_LABELS } from "../../../src/shared/types";
 import { VERDICT_STYLE, softSpring } from "../theme";
 import { AnimatedNumber } from "./AnimatedNumber";
-import { initials } from "./SpeakerBar";
+import { Avatar } from "./Avatar";
 
 interface Props {
   candidates: SpeakerInfo[];
@@ -29,7 +29,7 @@ export function Scoreboard({ candidates, claims, onlyPublished, compact }: Props
         return (
           <div key={cand.id} className="score" style={{ "--c": cand.cor } as CSSProperties}>
             <div className="score__head">
-              <span className="score__avatar">{initials(cand.nome)}</span>
+              <Avatar speaker={cand} className="score__avatar" />
               <strong>{cand.nome}</strong>
               <span className="score__total">
                 <AnimatedNumber value={total} /> checagens

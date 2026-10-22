@@ -19,7 +19,8 @@
     "fontes:sql": "tsx scripts/fontes-sql.ts",
     "cf:prepare": "tsx scripts/cf-prepare.ts && vite build web",
     "cf:dev": "npm run cf:prepare && cd worker-app && wrangler dev",
-    "cf:deploy": "npm run cf:prepare && cd worker-app && wrangler deploy"
+    "cf:deploy": "npm run cf:prepare && cd worker-app && wrangler deploy",
+    "tse:fotos": "tsx scripts/tse-fotos.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0",

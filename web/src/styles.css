@@ -1658,3 +1658,42 @@ select:focus-visible {
   font-size: 12.5px;
   font-weight: 700;
 }
+
+/* ---------- fotos dos candidatos ---------- */
+
+.speaker__avatar,
+.score__avatar,
+.lower__foto,
+.mural__foto {
+  overflow: hidden;
+}
+.speaker__avatar img,
+.score__avatar img,
+.lower__foto img,
+.mural__foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  display: block;
+}
+.lower__foto {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px solid var(--c);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--c) 60%, transparent);
+  flex: none;
+}
+.mural__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mural__foto {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  flex: none;
+}
