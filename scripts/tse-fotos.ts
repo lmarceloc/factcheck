@@ -5,6 +5,9 @@
 //   npm run tse:fotos -- --eleicao 6258 --cargo 1
 //   npm run tse:fotos -- --eleicao 6258 --cargo 1 --mapa "a=FLAVIO,b=LULA"
 //
+// Ou, com as URLs das fotos já em mãos (botão direito na foto → copiar endereço):
+//   npm run tse:fotos -- --fotos "a=https://...jpeg,b=https://...jpeg"
+//
 // Se o TSE mudar os caminhos, informe os endereços vistos no navegador
 // (DevTools → Rede, na página de resultados):
 //   --url-candidatos <URL do JSON com a lista de candidatos>
@@ -73,6 +76,39 @@ async function descobrirCiclo(): Promise<string> {
   return "ele2026";
 }
 
+async function baixar(url: string, id: string): Promise<boolean> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.warn(`✗ ${id}: foto indisponível (${res.status}) em ${url}`);
+    return false;
+  }
+  fs.writeFileSync(path.join("web/public/fotos", `${id}.jpeg`), Buffer.from(await res.arrayBuffer()));
+  return true;
+}
+
+// Modo direto: baixa as URLs informadas, sem consultar a lista de candidatos.
+if (flag("fotos")) {
+  if (!fs.existsSync(arquivoDebate)) fs.copyFileSync("config/debate.example.json", arquivoDebate);
+  const debate = DebateConfigSchema.parse(JSON.parse(fs.readFileSync(arquivoDebate, "utf8")));
+  fs.mkdirSync("web/public/fotos", { recursive: true });
+  for (const par of flag("fotos")!.split(",")) {
+    const [id, ...resto] = par.split("=");
+    const url = resto.join("=").trim();
+    const cand = [...debate.candidatos, ...debate.outros_falantes].find((c) => c.id === id.trim());
+    if (!cand) {
+      console.warn(`✗ ${id}: não existe participante com esse id em ${arquivoDebate}`);
+      continue;
+    }
+    if (await baixar(url, cand.id)) {
+      cand.foto = `/fotos/${cand.id}.jpeg`;
+      console.log(`✓ ${cand.nome} ← ${url}`);
+    }
+  }
+  fs.writeFileSync(arquivoDebate, JSON.stringify(debate, null, 2) + "\n");
+  console.log(`\n${arquivoDebate} atualizado. Rode npm run cf:deploy para publicar as fotos.`);
+  process.exit(0);
+}
+
 const ciclo = flag("url-candidatos") ? "" : await descobrirCiclo();
 const e6 = eleicao.padStart(6, "0");
 const c4 = String(cargo).padStart(4, "0");
@@ -105,13 +141,7 @@ for (const cand of debate.candidatos) {
   const urlFoto = exemplo
     ? exemplo.replace(/\d{6,}(?=\.[a-z]+(\?|$))/i, achado.sqcand)
     : `${BASE}/${ciclo}/${eleicao}/fotos/${uf}/${achado.sqcand}.jpeg`;
-  const res = await fetch(urlFoto);
-  if (!res.ok) {
-    console.warn(`✗ ${cand.nome}: foto indisponível (${res.status}) em ${urlFoto}`);
-    continue;
-  }
-  const destino = path.join("web/public/fotos", `${cand.id}.jpeg`);
-  fs.writeFileSync(destino, Buffer.from(await res.arrayBuffer()));
+  if (!(await baixar(urlFoto, cand.id))) continue;
   cand.foto = `/fotos/${cand.id}.jpeg`;
   console.log(`✓ ${cand.nome} ← ${achado.nome} (${urlFoto})`);
 }

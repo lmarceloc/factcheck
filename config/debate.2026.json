@@ -8,17 +8,25 @@
       "nome": "Flávio Bolsonaro",
       "partido": "PL",
       "descricao": "Senador pelo Rio de Janeiro desde 2019; antes, deputado estadual no RJ (2003–2019). Filho do ex-presidente Jair Bolsonaro.",
-      "cor": "#3b82f6"
+      "cor": "#3b82f6",
+      "foto": "https://resultados.tse.jus.br/oficial/ele2026/6258/fotos/br/280002551544.jpeg"
     },
     {
       "id": "b",
       "nome": "Lula",
       "partido": "PT",
       "descricao": "Luiz Inácio Lula da Silva. Presidente da República (2003–2010 e desde 2023), candidato à reeleição.",
-      "cor": "#f97316"
+      "cor": "#f97316",
+      "foto": "https://resultados.tse.jus.br/oficial/ele2026/6258/fotos/br/280002542548.jpeg"
     }
   ],
-  "outros_falantes": [{ "id": "mediador", "nome": "Mediação", "cor": "#94a3b8" }],
+  "outros_falantes": [
+    {
+      "id": "mediador",
+      "nome": "Mediação",
+      "cor": "#94a3b8"
+    }
+  ],
   "contexto": "Eleição presidencial de 2026. Confira e complete: data e emissora do debate, temas esperados e fatos recentes que a redação quer que o checador tenha em mente.",
   "fontes_preferidas": [
     "ibge.gov.br",
