@@ -2,11 +2,20 @@ import type { ArquivoResumo, Claim, Verdict } from "../../src/shared/types";
 
 const TOKEN_KEY = "factcheck.token";
 
-/** Token do operador: vem de ?token= na URL e fica guardado neste navegador. */
+/**
+ * Token do operador: vem de ?token= na URL e fica guardado neste navegador.
+ * Sai da barra de endereço na hora (não aparece em print, tela compartilhada nem histórico).
+ */
 export function operatorToken(): string | null {
-  const fromUrl = new URLSearchParams(location.search).get("token");
+  const params = new URLSearchParams(location.search);
+  const fromUrl = params.get("token");
   try {
-    if (fromUrl) localStorage.setItem(TOKEN_KEY, fromUrl);
+    if (fromUrl) {
+      localStorage.setItem(TOKEN_KEY, fromUrl);
+      params.delete("token");
+      const resto = params.toString();
+      history.replaceState(history.state, "", `${location.pathname}${resto ? `?${resto}` : ""}${location.hash}`);
+    }
     return fromUrl ?? localStorage.getItem(TOKEN_KEY);
   } catch {
     return fromUrl;

@@ -4,7 +4,7 @@ data/*
 !data/.gitkeep
 .env
 config/debate.json
-worker/.wrangler/
+.wrangler/
 worker/node_modules/
 .dev.vars
 worker-app/.wrangler/
