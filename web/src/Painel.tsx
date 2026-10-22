@@ -33,9 +33,9 @@ export function Painel() {
   // Modo manual (operador escolhe quem fala) ou transmissão (link do YouTube, orador automático).
   const [modo, setModoState] = useState<"manual" | "transmissao">(() => {
     try {
-      return localStorage.getItem("factcheck.modo") === "transmissao" ? "transmissao" : "manual";
+      return localStorage.getItem("factcheck.modo") === "manual" ? "manual" : "transmissao";
     } catch {
-      return "manual";
+      return "transmissao";
     }
   });
   const setModo = (m: "manual" | "transmissao") => {
