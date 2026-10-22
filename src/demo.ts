@@ -26,6 +26,7 @@ export const demoExtractor: Extractor = async (chunk, _context, known) => {
       categoria: /\d|%/.test(s) ? "dado_pais" : /ele|ela|advers|govern/i.test(s) ? "acusacao_adversario" : "sobre_si",
       tema: /infla|preço/i.test(s) ? "inflacao_precos" : /desempreg|emprego/i.test(s) ? "emprego_renda" : /vot/i.test(s) ? "votacao_legislativa" : "outro",
       alvo: null,
+      orador_id: null,
       prioridade: /\d/.test(s) ? "alta" : "media",
       repete_id: repeat?.id ?? null,
     };

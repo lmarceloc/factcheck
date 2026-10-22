@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { forwardRef, useState, type CSSProperties } from "react";
 import type { Claim, SpeakerInfo, Verdict } from "../../../src/shared/types";
-import { CATEGORY_LABELS, VERDICTS, VERDICT_LABELS } from "../../../src/shared/types";
+import { AUTO_SPEAKER, CATEGORY_LABELS, VERDICTS, VERDICT_LABELS } from "../../../src/shared/types";
 import { api } from "../api";
 import { STATUS_LABEL, VERDICT_STYLE, softSpring } from "../theme";
 import { VerdictBadge } from "./VerdictBadge";
@@ -10,6 +10,7 @@ interface Props {
   claim: Claim;
   speaker?: SpeakerInfo;
   target?: SpeakerInfo;
+  candidates?: SpeakerInfo[];
 }
 
 const fmtSeconds = (ms: number) => `${(ms / 1000).toFixed(0)}s`;
@@ -23,7 +24,7 @@ function hostname(url: string) {
 }
 
 /** Cartão de uma afirmação: da fila até o veredito, com as buscas aparecendo ao vivo. */
-export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ claim, speaker, target }, ref) {
+export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ claim, speaker, target, candidates = [] }, ref) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -57,7 +58,23 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
       <motion.div layout="position" className="claim__head">
         <span className="claim__who">
           <span className="dot" />
-          {speaker?.nome ?? claim.speakerId}
+          {claim.speakerId === AUTO_SPEAKER ? (
+            <select
+              className="claim__who-pick"
+              value=""
+              aria-label="Quem disse"
+              onChange={(e) => e.target.value && act(() => api.edit(claim.id, { speakerId: e.target.value }))}
+            >
+              <option value="">Quem disse? (não identificado)</option>
+              {candidates.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          ) : (
+            (speaker?.nome ?? claim.speakerId)
+          )}
           {target && <span className="claim__target">sobre {target.nome}</span>}
         </span>
         <span className="claim__meta">

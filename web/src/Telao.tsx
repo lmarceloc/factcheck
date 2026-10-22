@@ -23,7 +23,12 @@ export function Telao() {
 
   const { data, claims, connected } = useDebate("public");
   const speakers = useMemo(
-    () => new Map((data ? [...data.debate.candidatos, ...data.debate.outros_falantes] : []).map((s) => [s.id, s])),
+    () =>
+      new Map(
+        (data ? [...data.debate.candidatos, ...data.debate.outros_falantes, { id: "auto", nome: "Não identificado", cor: "#94a3b8" }] : []).map(
+          (s) => [s.id, s],
+        ),
+      ),
     [data?.debate],
   );
   const published = useMemo(

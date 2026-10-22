@@ -2,7 +2,7 @@ import { useMotionValue } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 
-export type AudioSource = "microfone" | "aba";
+export type AudioSource = "microfone" | "aba" | "esta_aba";
 
 interface TurnMessage {
   type: "Turn";
@@ -50,7 +50,12 @@ async function openStream(source: AudioSource): Promise<MediaStream> {
     return navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: true } });
   }
   // O Chrome só compartilha o áudio de uma aba junto com o vídeo; o vídeo é descartado.
-  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  // "esta_aba" já sugere a própria página (onde está o player do YouTube).
+  const options =
+    source === "esta_aba"
+      ? { video: true, audio: true, preferCurrentTab: true, selfBrowserSurface: "include", surfaceSwitching: "exclude", systemAudio: "exclude" }
+      : { video: true, audio: true };
+  const stream = await navigator.mediaDevices.getDisplayMedia(options as DisplayMediaStreamOptions);
   stream.getVideoTracks().forEach((t) => t.stop());
   if (stream.getAudioTracks().length === 0) {
     throw new Error("A aba foi compartilhada sem áudio. Escolha uma aba e marque “Compartilhar áudio da aba”.");

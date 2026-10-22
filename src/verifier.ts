@@ -107,7 +107,7 @@ Regras:
 
 export function verificationUserPrompt(config: AppConfig, claim: Claim, context: Segment[], rotaTexto?: string): string {
   const names = new Map(allSpeakers(config.debate).map((s) => [s.id, s.nome]));
-  const speaker = names.get(claim.speakerId) ?? claim.speakerId;
+  const speaker = names.get(claim.speakerId) ?? "orador não identificado (fala da transmissão)";
   const ctx = context.map((s) => `${names.get(s.speakerId) ?? s.speakerId}: ${s.text}`).join("\n");
   return `<afirmacao>
 Quem disse: ${speaker}

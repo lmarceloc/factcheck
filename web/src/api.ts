@@ -38,7 +38,7 @@ export const api = {
   unpublish: (id: string) => request<Claim>("POST", `/api/claims/${id}/unpublish`),
   discard: (id: string) => request<Claim>("POST", `/api/claims/${id}/discard`),
   recheck: (id: string) => request<Claim>("POST", `/api/claims/${id}/recheck`),
-  edit: (id: string, patch: { veredito?: Verdict; resumo?: string; explicacao?: string; dados?: string }) =>
+  edit: (id: string, patch: { veredito?: Verdict; resumo?: string; explicacao?: string; dados?: string; speakerId?: string }) =>
     request<Claim>("PATCH", `/api/claims/${id}`, patch),
   settings: (autoPublish: boolean) => request("POST", "/api/settings", { autoPublish }),
   sttConfig: () => request<{ assemblyai: boolean }>("GET", "/api/stt/config"),

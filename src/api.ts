@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Pipeline } from "./pipeline.js";
 import { markdownReport } from "./report.js";
 import type { Claim, PublicState, ServerEvent } from "./shared/types.js";
-import { VERDICTS } from "./shared/types.js";
+import { AUTO_SPEAKER, VERDICTS } from "./shared/types.js";
 import type { Store } from "./store.js";
 import type { SttSession } from "./stt.js";
 
@@ -71,6 +71,7 @@ const fail = (status: number, error: string): ApiResponse => ({ status, json: { 
 
 export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {}) {
   const speakerIds = new Set([...store.debate.candidatos, ...store.debate.outros_falantes].map((s) => s.id));
+  speakerIds.add(AUTO_SPEAKER);
 
   /** Painel e ações exigem o token do operador (quando configurado); o telão é aberto. */
   function isOperator(req: Pick<ApiRequest, "header" | "query">): boolean {

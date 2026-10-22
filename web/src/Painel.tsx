@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { SpeakerInfo } from "../../src/shared/types";
+import { AUTO_SPEAKER, type SpeakerInfo } from "../../src/shared/types";
 import { api } from "./api";
 import { ClaimFeed } from "./components/ClaimFeed";
 import { Logo } from "./components/Logo";
@@ -9,6 +9,7 @@ import { MicButton } from "./components/MicButton";
 import { Scoreboard } from "./components/Scoreboard";
 import { SpeakerBar } from "./components/SpeakerBar";
 import { Transcript } from "./components/Transcript";
+import { Transmissao } from "./components/Transmissao";
 import { useDebate } from "./useDebate";
 import { useAssembly, type AudioSource } from "./useAssembly";
 import { speechSupported, useMicLevel, useSpeech } from "./useSpeech";
@@ -24,7 +25,28 @@ export function Painel() {
     () => (data ? [...data.debate.candidatos, ...data.debate.outros_falantes] : []),
     [data?.debate],
   );
-  const byId = useMemo(() => new Map(speakers.map((s) => [s.id, s])), [speakers]);
+  const byId = useMemo(
+    () => new Map([...speakers, { id: AUTO_SPEAKER, nome: "Não identificado", cor: "#94a3b8" }].map((s) => [s.id, s])),
+    [speakers],
+  );
+
+  // Modo manual (operador escolhe quem fala) ou transmissão (link do YouTube, orador automático).
+  const [modo, setModoState] = useState<"manual" | "transmissao">(() => {
+    try {
+      return localStorage.getItem("factcheck.modo") === "transmissao" ? "transmissao" : "manual";
+    } catch {
+      return "manual";
+    }
+  });
+  const setModo = (m: "manual" | "transmissao") => {
+    setModoState(m);
+    try {
+      localStorage.setItem("factcheck.modo", m);
+    } catch {
+      /* só não lembra a escolha */
+    }
+  };
+  const [verTranscricao, setVerTranscricao] = useState(false);
   const claimList = useMemo(() => [...claims.values()], [claims]);
 
   const notify = useCallback((msg: string) => {
@@ -70,20 +92,24 @@ export function Painel() {
     [notify],
   );
   const toggleMic = useCallback(() => (speech.listening ? speech.stop() : speech.start()), [speech]);
+  const startTransmissao = async () => {
+    await api.setSpeaker(AUTO_SPEAKER).catch((e) => notify(e.message));
+    assembly.start("esta_aba");
+  };
 
   // Atalhos: 1–9 escolhe o orador, 0 ninguém, M liga/desliga o microfone.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "m" || e.key === "M") return toggleMic();
+      if ((e.key === "m" || e.key === "M") && modo === "manual") return toggleMic();
       if (e.key === "0") return void selectSpeaker(null);
       const n = Number(e.key);
       if (n >= 1 && n <= speakers.length) selectSpeaker(speakers[n - 1].id);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [speakers, selectSpeaker, toggleMic]);
+  }, [speakers, selectSpeaker, toggleMic, modo]);
 
   if (!data) return <Loading connected={connected} />;
 
@@ -109,6 +135,21 @@ export function Painel() {
           <Stat label="checando" value={checking} pulse={checking > 0} />
           <Stat label="para revisar" value={review} highlight={review > 0} />
         </div>
+        <div className="mode-toggle" role="radiogroup" aria-label="Modo de operação">
+          {(["transmissao", "manual"] as const).map((m) => (
+            <button
+              key={m}
+              role="radio"
+              aria-checked={modo === m}
+              className={modo === m ? "on" : ""}
+              disabled={speech.listening || assembly.listening}
+              onClick={() => setModo(m)}
+            >
+              {modo === m && <motion.span layoutId="mode-bg" className="mode-toggle__bg" />}
+              <span>{m === "transmissao" ? "Transmissão" : "Manual"}</span>
+            </button>
+          ))}
+        </div>
         <div className="topbar__actions">
           <label className="switch" title="Publica no telão sem revisão humana">
             <input
@@ -131,6 +172,7 @@ export function Painel() {
         </div>
       </header>
 
+      {modo === "manual" && (
       <section className="stage">
         <SpeakerBar speakers={speakers} current={current} onSelect={selectSpeaker} />
         <MicButton
@@ -142,18 +184,51 @@ export function Painel() {
           source={assemblyOn ? { value: source, onChange: setSource } : undefined}
         />
       </section>
+      )}
 
-      <main className="grid">
+      <main className={`grid grid--${modo}`}>
         <section className="panel panel--transcript">
-          <h2>
-            Transcrição <span className="badge">ao vivo</span>
-          </h2>
-          <Transcript segments={data.segments} interim={interim} speakers={byId} />
-          <ManualInput speakers={speakers} current={current} />
+          {modo === "transmissao" ? (
+            <>
+              <h2>
+                Transmissão <span className="badge">ao vivo</span>
+              </h2>
+              <Transmissao
+                available={assemblyOn}
+                listening={assembly.listening}
+                level={assembly.level}
+                onStart={startTransmissao}
+                onStop={assembly.stop}
+              />
+              <button className="link tx__toggle" onClick={() => setVerTranscricao((v) => !v)}>
+                {verTranscricao ? "Esconder transcrição" : `Mostrar transcrição (${data.segments.length} falas)`}
+              </button>
+              <AnimatePresence initial={false}>
+                {verTranscricao && (
+                  <motion.div
+                    className="tx__transcript"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                  >
+                    <Transcript segments={data.segments} interim={interim} speakers={byId} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          ) : (
+            <>
+              <h2>
+                Transcrição <span className="badge">ao vivo</span>
+              </h2>
+              <Transcript segments={data.segments} interim={interim} speakers={byId} />
+              <ManualInput speakers={speakers} current={current} />
+            </>
+          )}
         </section>
         <section className="panel panel--checks">
           <Scoreboard candidates={data.debate.candidatos} claims={claimList} />
-          <ClaimFeed claims={claimList} speakers={byId} />
+          <ClaimFeed claims={claimList} speakers={byId} candidates={speakers} />
         </section>
       </main>
 

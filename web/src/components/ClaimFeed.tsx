@@ -16,9 +16,11 @@ const TABS: { id: string; label: string; statuses: ClaimStatus[] }[] = [
 interface Props {
   claims: Claim[];
   speakers: Map<string, SpeakerInfo>;
+  /** Oradores reais, para identificar quem disse quando a transmissão não soube. */
+  candidates: SpeakerInfo[];
 }
 
-export function ClaimFeed({ claims, speakers }: Props) {
+export function ClaimFeed({ claims, speakers, candidates }: Props) {
   const [tab, setTab] = useState("todas");
   const active = TABS.find((t) => t.id === tab)!;
   const visible = claims
@@ -51,6 +53,7 @@ export function ClaimFeed({ claims, speakers }: Props) {
               claim={c}
               speaker={speakers.get(c.speakerId)}
               target={c.alvo ? speakers.get(c.alvo) : undefined}
+              candidates={candidates}
             />
           ))}
         </AnimatePresence>

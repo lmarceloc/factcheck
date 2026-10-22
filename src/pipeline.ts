@@ -3,7 +3,7 @@ import type { Extractor } from "./extractor.js";
 import { describeError } from "./llm.js";
 import { PriorityQueue } from "./queue.js";
 import { Segmenter, type Chunk } from "./segmenter.js";
-import type { Claim, Segment } from "./shared/types.js";
+import { AUTO_SPEAKER, type Claim, type Segment } from "./shared/types.js";
 import type { Store } from "./store.js";
 import type { Verifier } from "./verifier.js";
 
@@ -94,7 +94,8 @@ export class Pipeline {
     for (const item of extracted) {
       const original = item.repete_id ? this.store.claims.get(item.repete_id) : undefined;
       const base = {
-        speakerId: chunk.speakerId,
+        // Na transmissão (orador "auto") vale quem o Claude identificou pelo contexto.
+        speakerId: chunk.speakerId === AUTO_SPEAKER ? (item.orador_id ?? AUTO_SPEAKER) : chunk.speakerId,
         segmentIds: chunk.segmentIds,
         trecho: item.trecho,
         afirmacao: item.afirmacao,

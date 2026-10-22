@@ -23,7 +23,7 @@ export function markdownReport(state: PublicState): string {
     const r = c.resultado!;
     const hora = new Date(c.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     lines.push(
-      `## ${VERDICT_LABELS[r.veredito].toUpperCase()} — ${names.get(c.speakerId) ?? c.speakerId}`,
+      `## ${VERDICT_LABELS[r.veredito].toUpperCase()} — ${names.get(c.speakerId) ?? "Orador não identificado"}`,
       "",
       `> "${c.trecho}"`,
       "",
