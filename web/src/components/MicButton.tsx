@@ -1,10 +1,15 @@
 import { motion, useTransform, type MotionValue } from "motion/react";
+import type { AudioSource } from "../useAssembly";
 
 interface Props {
   listening: boolean;
   level: MotionValue<number>;
   disabled?: boolean;
   onToggle: () => void;
+  /** Motor de transcrição, mostrado abaixo do título. */
+  engine: string;
+  /** Escolha da fonte de áudio (só quando o motor permite). */
+  source?: { value: AudioSource; onChange: (v: AudioSource) => void };
 }
 
 const BARS = [0.55, 0.85, 1, 0.75, 0.5];
@@ -15,7 +20,7 @@ function Bar({ level, weight, i }: { level: MotionValue<number>; weight: number;
 }
 
 /** Botão do microfone com anéis pulsando e medidor de volume em tempo real. */
-export function MicButton({ listening, level, disabled, onToggle }: Props) {
+export function MicButton({ listening, level, disabled, onToggle, engine, source }: Props) {
   return (
     <div className="mic">
       <motion.button
@@ -48,8 +53,26 @@ export function MicButton({ listening, level, disabled, onToggle }: Props) {
         ))}
       </div>
       <div className="mic__label">
-        <strong>{listening ? "Ouvindo" : "Microfone"}</strong>
-        <small>{listening ? "pt-BR · contínuo" : "clique ou tecle M"}</small>
+        <strong>{listening ? "Ouvindo" : source?.value === "aba" ? "Áudio da aba" : "Microfone"}</strong>
+        <small>{listening ? engine : `${engine} · tecle M`}</small>
+        {source && (
+          <div className="mic__sources" role="radiogroup" aria-label="Fonte do áudio">
+            {(["microfone", "aba"] as AudioSource[]).map((v) => (
+              <button
+                key={v}
+                role="radio"
+                aria-checked={source.value === v}
+                className={source.value === v ? "on" : ""}
+                disabled={listening}
+                onClick={() => source.onChange(v)}
+                title={v === "aba" ? "Transcreve o áudio de uma aba (ex.: a transmissão do debate)" : "Transcreve o microfone"}
+              >
+                {source.value === v && <motion.span layoutId="mic-source" className="mic__source-bg" />}
+                <span>{v === "aba" ? "Aba / transmissão" : "Microfone"}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

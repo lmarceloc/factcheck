@@ -41,6 +41,8 @@ export const api = {
   edit: (id: string, patch: { veredito?: Verdict; resumo?: string; explicacao?: string; dados?: string }) =>
     request<Claim>("PATCH", `/api/claims/${id}`, patch),
   settings: (autoPublish: boolean) => request("POST", "/api/settings", { autoPublish }),
+  sttConfig: () => request<{ assemblyai: boolean }>("GET", "/api/stt/config"),
+  sttSession: () => request<{ url: string; sampleRate: number }>("POST", "/api/stt/session"),
 };
 
 export function eventsUrl(view: "operator" | "public") {

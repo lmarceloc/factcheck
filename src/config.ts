@@ -53,6 +53,13 @@ const EnvSchema = z.object({
   DATA_GATEWAY_TOKEN: z.string().optional(),
   PORTAL_TRANSPARENCIA_API_KEY: z.string().optional(),
   FONTES_CONFIG: z.string().default("config/fontes.json"),
+  /** Transcrição em tempo real pelo AssemblyAI (a chave fica só no servidor). */
+  ASSEMBLYAI_API_KEY: z.string().optional(),
+  ASSEMBLYAI_SPEECH_MODEL: z.string().default("universal-3-6-pro"),
+  /** Base do streaming (troque para a região da UE se precisar). */
+  ASSEMBLYAI_BASE_URL: z.string().url().default("https://streaming.assemblyai.com/v3"),
+  /** Parâmetros extras da conexão de streaming, em formato de query string (ex.: language_code=pt). */
+  ASSEMBLYAI_PARAMS: z.string().default(""),
   /** Se definido, o painel do checador e as ações exigem este token; o telão continua aberto. */
   OPERATOR_TOKEN: z.string().optional(),
   NODE_ENV: z.string().default("development"),

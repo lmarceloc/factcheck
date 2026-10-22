@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createApp } from "./app.js";
 import { criarClienteDados } from "./data/cliente.js";
+import { createSttSession } from "./stt.js";
 import { demoExtractor, demoVerifier } from "./demo.js";
 import { loadConfig } from "./config.js";
 import { createExtractor } from "./extractor.js";
@@ -32,7 +33,10 @@ const pipeline = config.DEMO_MODE
       const client = new Anthropic();
       return new Pipeline(store, createExtractor(client, config), createVerifier(client, config, dados), config);
     })();
-const app = createApp(store, pipeline, { operatorToken: config.OPERATOR_TOKEN });
+const app = createApp(store, pipeline, {
+  operatorToken: config.OPERATOR_TOKEN,
+  createSttSession: config.ASSEMBLYAI_API_KEY ? () => createSttSession(config) : undefined,
+});
 
 const webRoot = path.resolve("web");
 const dist = path.resolve("dist/web");
@@ -51,6 +55,11 @@ const server = app.listen(config.PORT, () => {
   console.log(`\n  Checagem ao vivo — ${config.debate.titulo}`);
   console.log(`  Painel do checador: http://localhost:${config.PORT}/`);
   console.log(`  Telão / overlay:    http://localhost:${config.PORT}/telao\n`);
+  console.log(
+    config.ASSEMBLYAI_API_KEY
+      ? `  Transcrição: AssemblyAI (${config.ASSEMBLYAI_SPEECH_MODEL})`
+      : "  Transcrição: reconhecimento de voz do navegador (defina ASSEMBLYAI_API_KEY para usar o AssemblyAI)",
+  );
   if (!config.DEMO_MODE) {
     console.log(
       dados

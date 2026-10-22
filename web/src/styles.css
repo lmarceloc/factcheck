@@ -479,6 +479,41 @@ select:focus-visible {
   font-size: 11.5px;
   color: var(--muted);
 }
+.mic__sources {
+  margin-top: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.mic__sources button {
+  position: relative;
+  border: 0;
+  background: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mic__sources button.on {
+  color: var(--text);
+}
+.mic__sources button:disabled {
+  cursor: not-allowed;
+}
+.mic__sources button span {
+  position: relative;
+}
+.mic__source-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: rgba(255, 77, 94, 0.35);
+}
 
 /* ---------- grade principal ---------- */
 

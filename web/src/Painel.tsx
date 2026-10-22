@@ -10,6 +10,7 @@ import { Scoreboard } from "./components/Scoreboard";
 import { SpeakerBar } from "./components/SpeakerBar";
 import { Transcript } from "./components/Transcript";
 import { useDebate } from "./useDebate";
+import { useAssembly, type AudioSource } from "./useAssembly";
 import { speechSupported, useMicLevel, useSpeech } from "./useSpeech";
 
 export function Painel() {
@@ -32,23 +33,37 @@ export function Painel() {
   }, []);
 
   const lastInterim = useRef(0);
-  const speech = useSpeech(
-    (text) => {
-      if (!currentRef.current) return notify("Escolha quem está falando para a fala entrar na checagem.");
-      api.transcript(text).catch((e) => notify(e.message));
-    },
-    (text) => {
-      const now = Date.now();
-      if (!currentRef.current || (text && now - lastInterim.current < 350)) return;
-      lastInterim.current = now;
-      api.transcript(text, false).catch(() => {});
-    },
-  );
-  const level = useMicLevel(speech.listening);
+  const onFinal = (text: string) => {
+    if (!currentRef.current) return notify("Escolha quem está falando para a fala entrar na checagem.");
+    api.transcript(text).catch((e) => notify(e.message));
+  };
+  const onInterim = (text: string) => {
+    const now = Date.now();
+    if (!currentRef.current || (text && now - lastInterim.current < 350)) return;
+    lastInterim.current = now;
+    api.transcript(text, false).catch(() => {});
+  };
+
+  // Motor de transcrição: AssemblyAI quando o servidor tem a chave; senão, o do navegador.
+  const [assemblyOn, setAssemblyOn] = useState(false);
+  const [source, setSource] = useState<AudioSource>("microfone");
+  useEffect(() => {
+    api.sttConfig().then((c) => setAssemblyOn(c.assemblyai)).catch(() => setAssemblyOn(false));
+  }, []);
+  const browser = useSpeech(onFinal, onInterim);
+  const assembly = useAssembly(onFinal, onInterim);
+  const browserLevel = useMicLevel(browser.listening);
+  const speech = assemblyOn
+    ? { listening: assembly.listening, start: () => assembly.start(source), stop: assembly.stop }
+    : browser;
+  const level = assemblyOn ? assembly.level : browserLevel;
 
   useEffect(() => {
-    if (speech.error) notify(speech.error);
-  }, [speech.error, notify]);
+    if (browser.error) notify(browser.error);
+  }, [browser.error, notify]);
+  useEffect(() => {
+    if (assembly.error) notify(assembly.error);
+  }, [assembly.error, notify]);
 
   const selectSpeaker = useCallback(
     (id: string | null) => api.setSpeaker(id).catch((e) => notify(e.message)),
@@ -118,7 +133,14 @@ export function Painel() {
 
       <section className="stage">
         <SpeakerBar speakers={speakers} current={current} onSelect={selectSpeaker} />
-        <MicButton listening={speech.listening} level={level} onToggle={toggleMic} disabled={!speechSupported} />
+        <MicButton
+          listening={speech.listening}
+          level={level}
+          onToggle={toggleMic}
+          disabled={!assemblyOn && !speechSupported}
+          engine={assemblyOn ? "AssemblyAI" : "navegador · pt-BR"}
+          source={assemblyOn ? { value: source, onChange: setSource } : undefined}
+        />
       </section>
 
       <main className="grid">

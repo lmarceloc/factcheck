@@ -2,6 +2,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { z } from "zod";
 import type { Pipeline } from "./pipeline.js";
 import { markdownReport } from "./report.js";
+import type { SttSession } from "./stt.js";
 import type { Claim, PublicState, ServerEvent } from "./shared/types.js";
 import { VERDICTS } from "./shared/types.js";
 import type { Store } from "./store.js";
@@ -40,7 +41,11 @@ const EditBody = z.object({
 });
 const SettingsBody = z.object({ autoPublish: z.boolean() });
 
-export function createApp(store: Store, pipeline: Pipeline, opts: { operatorToken?: string } = {}) {
+export function createApp(
+  store: Store,
+  pipeline: Pipeline,
+  opts: { operatorToken?: string; createSttSession?: () => Promise<SttSession> } = {},
+) {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
   const speakerIds = new Set([...store.debate.candidatos, ...store.debate.outros_falantes].map((s) => s.id));
@@ -60,6 +65,19 @@ export function createApp(store: Store, pipeline: Pipeline, opts: { operatorToke
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, fila: pipeline.checks.size, verificando: pipeline.checks.active });
+  });
+
+  // Transcrição: o painel pergunta qual motor usar e pede um token temporário do AssemblyAI.
+  app.get("/api/stt/config", requireOperator, (_req, res) => {
+    res.json({ assemblyai: Boolean(opts.createSttSession) });
+  });
+  app.post("/api/stt/session", requireOperator, async (_req, res) => {
+    if (!opts.createSttSession) return void res.status(404).json({ error: "AssemblyAI não configurado." });
+    try {
+      res.json(await opts.createSttSession());
+    } catch (err) {
+      res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   app.get("/api/public/state", (_req, res) => res.json(publicSnapshot(store.snapshot())));
