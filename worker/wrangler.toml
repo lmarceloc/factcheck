@@ -1,5 +1,5 @@
 # Gateway de dados oficiais da checagem ao vivo.
-# 1) npx wrangler d1 create factcheck-dados   → copie o database_id abaixo
+# 1) Banco D1 já criado (factcheck-dados, região ENAM)
 # 2) npm run db:migrate
 # 3) npx wrangler secret put GATEWAY_TOKEN   (e PORTAL_TRANSPARENCIA_API_KEY)
 # 4) npm run deploy
@@ -12,7 +12,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "factcheck-dados"
-database_id = "COLE-AQUI-O-ID-DO-D1"
+database_id = "d2808ac6-6261-430f-a95f-a90e0fcfd200"
 migrations_dir = "migrations"
 
 # Sincroniza as séries do Banco Central no D1 a cada hora (minuto 17).
