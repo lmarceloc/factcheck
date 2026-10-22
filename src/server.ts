@@ -10,6 +10,7 @@ import { loadConfig } from "./config.js";
 import { createExtractor } from "./extractor.js";
 import { Pipeline } from "./pipeline.js";
 import { Store } from "./store.js";
+import { FilePersistence } from "./store-file.js";
 import { createVerifier } from "./verifier.js";
 
 // Lê o .env se existir; variáveis já definidas no ambiente têm prioridade.
@@ -25,7 +26,7 @@ const dados = config.DEMO_MODE ? null : criarClienteDados(config);
 const store = new Store(config.debate, {
   autoPublish: config.AUTO_PUBLISH,
   demo: config.DEMO_MODE,
-  file: path.join(config.DATA_DIR, config.DEMO_MODE ? "state-demo.json" : "state.json"),
+  persistence: new FilePersistence(path.join(config.DATA_DIR, config.DEMO_MODE ? "state-demo.json" : "state.json")),
 });
 const pipeline = config.DEMO_MODE
   ? new Pipeline(store, demoExtractor, demoVerifier, config)

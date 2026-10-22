@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { AppConfig } from "./config.js";
+import type { AppConfig } from "./config-core.js";
 
 export type Beta = Anthropic.Beta.AnthropicBeta;
 

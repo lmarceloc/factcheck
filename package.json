@@ -13,10 +13,13 @@
     "build": "vite build web",
     "start": "NODE_ENV=production tsx src/server.ts",
     "simulate": "tsx scripts/simulate.ts",
-    "typecheck": "tsc -p . && tsc -p web && tsc -p worker",
+    "typecheck": "tsc -p . && tsc -p web && tsc -p worker && tsc -p worker-app",
     "test": "vitest run",
     "tse:ingest": "tsx scripts/tse-ingest.ts",
-    "fontes:sql": "tsx scripts/fontes-sql.ts"
+    "fontes:sql": "tsx scripts/fontes-sql.ts",
+    "cf:prepare": "tsx scripts/cf-prepare.ts && vite build web",
+    "cf:dev": "npm run cf:prepare && cd worker-app && wrangler dev",
+    "cf:deploy": "npm run cf:prepare && cd worker-app && wrangler deploy"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0",

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { allSpeakers, type AppConfig } from "./config.js";
+import { allSpeakers, type AppConfig } from "./config-core.js";
 import { baseParams, withFastFallback } from "./llm.js";
 import type { ClienteDados } from "./data/cliente.js";
 import { definirFerramentas, executarFerramenta, FERRAMENTAS_DADOS, textoRota, type FerramentaDados } from "./data/ferramentas.js";

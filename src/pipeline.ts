@@ -1,4 +1,4 @@
-import type { AppConfig } from "./config.js";
+import type { AppConfig } from "./config-core.js";
 import type { Extractor } from "./extractor.js";
 import { describeError } from "./llm.js";
 import { PriorityQueue } from "./queue.js";
@@ -30,6 +30,14 @@ export class Pipeline {
     for (const claim of store.claims.values()) {
       if (claim.status === "na_fila") this.enqueue(claim);
     }
+  }
+
+  /** Há trabalho em andamento (triagem ou checagem)? Usado para manter o Durable Object acordado. */
+  get busy(): boolean {
+    return (
+      this.segmenter.pending ||
+      this.checks.size + this.checks.active + this.extractions.size + this.extractions.active > 0
+    );
   }
 
   /** Recebe um pedaço final de transcrição de quem está falando. */

@@ -25,7 +25,7 @@ const DEFAULTS: SegmenterOptions = { idleMs: 2500, minChars: 120, maxChars: 600 
  */
 export class Segmenter {
   private buffer: Segment[] = [];
-  private timer: NodeJS.Timeout | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly opts: SegmenterOptions;
 
   constructor(
@@ -47,6 +47,11 @@ export class Segmenter {
       return;
     }
     this.armTimer();
+  }
+
+  /** Há fala acumulada esperando para ser enviada? */
+  get pending(): boolean {
+    return this.buffer.length > 0;
   }
 
   flush() {

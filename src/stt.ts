@@ -1,4 +1,4 @@
-import type { AppConfig } from "./config.js";
+import type { AppConfig } from "./config-core.js";
 
 export interface SttSession {
   /** URL completa do WebSocket, já com o token temporário (uso único). */

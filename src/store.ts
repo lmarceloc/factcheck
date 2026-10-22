@@ -1,10 +1,17 @@
 import { EventEmitter } from "node:events";
-import fs from "node:fs";
-import path from "node:path";
-import { randomUUID } from "node:crypto";
 import type { Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
 
-type Persisted = Pick<PublicState, "segments" | "claims" | "currentSpeaker">;
+export type Persisted = Pick<PublicState, "segments" | "claims" | "currentSpeaker">;
+
+/** Onde o estado do debate é gravado: arquivo JSON no Node, SQLite no Durable Object. */
+export interface Persistence {
+  load(): Persisted | null;
+  saveSegment(segment: Segment): void;
+  saveClaim(claim: Claim): void;
+  saveMeta(meta: { currentSpeaker: string | null }): void;
+  /** Grava o que estiver pendente (no desligamento). */
+  flush?(): void;
+}
 
 /** Estado do debate em memória, com eventos para o SSE e gravação em disco. */
 export class Store extends EventEmitter {
@@ -13,17 +20,16 @@ export class Store extends EventEmitter {
   currentSpeaker: string | null = null;
   autoPublish: boolean;
   readonly demo: boolean;
-  private saveTimer: NodeJS.Timeout | null = null;
-  private readonly file?: string;
+  private readonly persistence?: Persistence;
 
   constructor(
     readonly debate: DebateInfo,
-    opts: { autoPublish: boolean; file?: string; demo?: boolean },
+    opts: { autoPublish: boolean; persistence?: Persistence; demo?: boolean },
   ) {
     super();
     this.setMaxListeners(0);
     this.autoPublish = opts.autoPublish;
-    this.file = opts.file;
+    this.persistence = opts.persistence;
     this.demo = opts.demo ?? false;
     this.load();
   }
@@ -49,7 +55,7 @@ export class Store extends EventEmitter {
   setSpeaker(speakerId: string | null) {
     this.currentSpeaker = speakerId;
     this.emitEvent({ type: "speaker", speakerId });
-    this.scheduleSave();
+    this.persistence?.saveMeta({ currentSpeaker: speakerId });
   }
 
   setAutoPublish(value: boolean) {
@@ -58,19 +64,19 @@ export class Store extends EventEmitter {
   }
 
   addSegment(speakerId: string, text: string, at = Date.now()): Segment {
-    const segment: Segment = { id: randomUUID(), speakerId, text, at };
+    const segment: Segment = { id: crypto.randomUUID(), speakerId, text, at };
     this.segments.push(segment);
     this.emitEvent({ type: "segment", segment });
-    this.scheduleSave();
+    this.persistence?.saveSegment(segment);
     return segment;
   }
 
   addClaim(data: Omit<Claim, "id" | "createdAt" | "updatedAt" | "progresso" | "status"> & Partial<Pick<Claim, "status">>): Claim {
     const now = Date.now();
-    const claim: Claim = { status: "na_fila", ...data, id: randomUUID(), createdAt: now, updatedAt: now, progresso: [] };
+    const claim: Claim = { status: "na_fila", ...data, id: crypto.randomUUID(), createdAt: now, updatedAt: now, progresso: [] };
     this.claims.set(claim.id, claim);
     this.emitEvent({ type: "claim", claim });
-    this.scheduleSave();
+    this.persistence?.saveClaim(claim);
     return claim;
   }
 
@@ -80,7 +86,7 @@ export class Store extends EventEmitter {
     const claim: Claim = { ...current, ...patch, id, updatedAt: Date.now() };
     this.claims.set(id, claim);
     this.emitEvent({ type: "claim", claim });
-    this.scheduleSave();
+    this.persistence?.saveClaim(claim);
     return claim;
   }
 
@@ -93,40 +99,19 @@ export class Store extends EventEmitter {
   }
 
   private load() {
-    if (!this.file || !fs.existsSync(this.file)) return;
-    try {
-      const data = JSON.parse(fs.readFileSync(this.file, "utf8")) as Persisted;
-      this.segments = data.segments ?? [];
-      this.currentSpeaker = data.currentSpeaker ?? null;
-      for (const claim of data.claims ?? []) {
-        // Checagens interrompidas por um reinício voltam para a fila.
-        if (claim.status === "verificando") claim.status = "na_fila";
-        this.claims.set(claim.id, claim);
-      }
-      console.log(`[store] ${this.segments.length} falas e ${this.claims.size} afirmações restauradas de ${this.file}`);
-    } catch (err) {
-      console.error(`[store] não foi possível ler ${this.file}:`, err);
+    const data = this.persistence?.load();
+    if (!data) return;
+    this.segments = data.segments ?? [];
+    this.currentSpeaker = data.currentSpeaker ?? null;
+    for (const claim of data.claims ?? []) {
+      // Checagens interrompidas por um reinício voltam para a fila.
+      if (claim.status === "verificando") claim.status = "na_fila";
+      this.claims.set(claim.id, claim);
     }
-  }
-
-  private scheduleSave() {
-    if (!this.file || this.saveTimer) return;
-    this.saveTimer = setTimeout(() => {
-      this.saveTimer = null;
-      this.saveNow();
-    }, 500);
+    console.log(`[store] ${this.segments.length} falas e ${this.claims.size} afirmações restauradas`);
   }
 
   saveNow() {
-    if (!this.file) return;
-    const data: Persisted = {
-      segments: this.segments,
-      claims: [...this.claims.values()],
-      currentSpeaker: this.currentSpeaker,
-    };
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(data));
-    fs.renameSync(tmp, this.file);
+    this.persistence?.flush?.();
   }
 }

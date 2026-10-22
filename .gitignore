@@ -7,3 +7,6 @@ config/debate.json
 worker/.wrangler/
 worker/node_modules/
 .dev.vars
+worker-app/.wrangler/
+worker-app/node_modules/
+worker-app/generated/

@@ -1,0 +1,202 @@
+import { z } from "zod";
+import type { Pipeline } from "./pipeline.js";
+import { markdownReport } from "./report.js";
+import type { Claim, PublicState, ServerEvent } from "./shared/types.js";
+import { VERDICTS } from "./shared/types.js";
+import type { Store } from "./store.js";
+import type { SttSession } from "./stt.js";
+
+// Rotas da API sem depender de framework: o Express (Node) e o Durable Object
+// (Cloudflare) só traduzem a requisição e a resposta.
+
+export interface ApiRequest {
+  method: string;
+  path: string;
+  query: URLSearchParams;
+  header(name: string): string | undefined;
+  body: unknown;
+}
+
+export interface ApiResponse {
+  status: number;
+  json?: unknown;
+  text?: string;
+  contentType?: string;
+}
+
+export interface ApiOptions {
+  operatorToken?: string;
+  /** No Cloudflare o token é obrigatório: sem ele o painel fica fechado. */
+  requireOperatorToken?: boolean;
+  createSttSession?: () => Promise<SttSession>;
+}
+
+const isPublic = (c: Claim) => c.status === "publicada";
+
+/** O telão só enxerga o que o editor publicou: nada de rascunho nem transcrição bruta. */
+export function publicSnapshot(state: PublicState): PublicState {
+  return { ...state, segments: [], claims: state.claims.filter(isPublic) };
+}
+
+export function publicEvent(event: ServerEvent): ServerEvent | null {
+  switch (event.type) {
+    case "claim":
+      return isPublic(event.claim) ? event : { type: "claim_hidden", id: event.claim.id };
+    case "segment":
+    case "interim":
+      return null;
+    default:
+      return event;
+  }
+}
+
+const TranscriptBody = z.object({
+  speakerId: z.string().optional(),
+  text: z.string(),
+  final: z.boolean().default(true),
+});
+const SpeakerBody = z.object({ speakerId: z.string().nullable() });
+const ManualClaimBody = z.object({ speakerId: z.string(), text: z.string().min(3) });
+const EditBody = z.object({
+  veredito: z.enum(VERDICTS).optional(),
+  resumo: z.string().optional(),
+  explicacao: z.string().optional(),
+  dados: z.string().optional(),
+  speakerId: z.string().optional(),
+});
+const SettingsBody = z.object({ autoPublish: z.boolean() });
+
+const ok = (json: unknown): ApiResponse => ({ status: 200, json });
+const fail = (status: number, error: string): ApiResponse => ({ status, json: { error } });
+
+export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {}) {
+  const speakerIds = new Set([...store.debate.candidatos, ...store.debate.outros_falantes].map((s) => s.id));
+
+  /** Painel e ações exigem o token do operador (quando configurado); o telão é aberto. */
+  function isOperator(req: Pick<ApiRequest, "header" | "query">): boolean {
+    if (!opts.operatorToken) return !opts.requireOperatorToken;
+    return (req.header("x-operator-token") ?? req.query.get("token")) === opts.operatorToken;
+  }
+
+  /** Assinatura do fluxo de eventos (SSE). Devolve a função para cancelar. */
+  function subscribe(view: "operator" | "public", send: (event: ServerEvent) => void): () => void {
+    const state = store.snapshot();
+    send({ type: "snapshot", state: view === "public" ? publicSnapshot(state) : state });
+    const listener = (event: ServerEvent) => {
+      const out = view === "public" ? publicEvent(event) : event;
+      if (out) send(out);
+    };
+    store.on("event", listener);
+    return () => store.off("event", listener);
+  }
+
+  async function handle(req: ApiRequest): Promise<ApiResponse> {
+    const { method, path } = req;
+    const route = `${method} ${path}`;
+
+    // Rotas públicas
+    if (route === "GET /api/health") {
+      return ok({ ok: true, fila: pipeline.checks.size, verificando: pipeline.checks.active });
+    }
+    if (route === "GET /api/public/state") return ok(publicSnapshot(store.snapshot()));
+    if (route === "GET /api/report.md") {
+      return { status: 200, text: markdownReport(publicSnapshot(store.snapshot())), contentType: "text/markdown; charset=utf-8" };
+    }
+
+    if (!isOperator(req)) {
+      return fail(401, opts.operatorToken ? "Token do operador ausente ou inválido." : "Configure OPERATOR_TOKEN para abrir o painel.");
+    }
+
+    if (route === "GET /api/state") return ok(store.snapshot());
+    if (route === "GET /api/report.json") return ok(store.snapshot());
+
+    if (route === "GET /api/stt/config") return ok({ assemblyai: Boolean(opts.createSttSession) });
+    if (route === "POST /api/stt/session") {
+      if (!opts.createSttSession) return fail(404, "AssemblyAI não configurado.");
+      try {
+        return ok(await opts.createSttSession());
+      } catch (err) {
+        return fail(502, err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    if (route === "POST /api/transcript") {
+      const body = TranscriptBody.safeParse(req.body);
+      if (!body.success) return fail(400, body.error.message);
+      const speakerId = body.data.speakerId ?? store.currentSpeaker;
+      if (!speakerId || !speakerIds.has(speakerId)) {
+        return fail(400, "Selecione quem está falando antes de enviar a transcrição.");
+      }
+      if (!body.data.final) {
+        store.emitEvent({ type: "interim", speakerId, text: body.data.text });
+        return ok({ ok: true });
+      }
+      return ok({ ok: true, segment: pipeline.ingest(speakerId, body.data.text) });
+    }
+
+    if (route === "POST /api/speaker") {
+      const body = SpeakerBody.safeParse(req.body);
+      if (!body.success || (body.data.speakerId && !speakerIds.has(body.data.speakerId))) {
+        return fail(400, "Orador inválido.");
+      }
+      // Troca de orador fecha o trecho de quem falava antes.
+      pipeline.segmenter.flush();
+      store.setSpeaker(body.data.speakerId);
+      return ok({ ok: true });
+    }
+
+    if (route === "POST /api/flush") {
+      pipeline.segmenter.flush();
+      return ok({ ok: true });
+    }
+
+    if (route === "POST /api/claims") {
+      const body = ManualClaimBody.safeParse(req.body);
+      if (!body.success || !speakerIds.has(body.data.speakerId)) return fail(400, "Informe o orador e a afirmação.");
+      return ok(pipeline.submitManual(body.data.speakerId, body.data.text));
+    }
+
+    if (route === "POST /api/settings") {
+      const body = SettingsBody.safeParse(req.body);
+      if (!body.success) return fail(400, body.error.message);
+      store.setAutoPublish(body.data.autoPublish);
+      return ok({ ok: true });
+    }
+
+    const m = path.match(/^\/api\/claims\/([^/]+)(?:\/(publish|unpublish|discard|recheck))?$/);
+    if (m) {
+      const claim = store.claims.get(decodeURIComponent(m[1]));
+      if (!claim) return fail(404, "Afirmação não encontrada.");
+      const action = m[2];
+      if (method === "POST" && action === "publish") {
+        if (!claim.resultado) return fail(409, "A checagem ainda não terminou.");
+        return ok(store.updateClaim(claim.id, { status: "publicada", publishedAt: Date.now() }));
+      }
+      if (method === "POST" && action === "unpublish") {
+        return ok(store.updateClaim(claim.id, { status: claim.resultado ? "rascunho" : "na_fila", publishedAt: undefined }));
+      }
+      if (method === "POST" && action === "discard") {
+        return ok(store.updateClaim(claim.id, { status: "descartada", publishedAt: undefined }));
+      }
+      if (method === "POST" && action === "recheck") return ok(pipeline.recheck(claim.id));
+      if (method === "PATCH" && !action) {
+        const body = EditBody.safeParse(req.body);
+        if (!body.success) return fail(400, body.error.message);
+        const { speakerId, ...resultado } = body.data;
+        if (speakerId && !speakerIds.has(speakerId)) return fail(400, "Orador inválido.");
+        if (!claim.resultado && Object.keys(resultado).length) return fail(409, "A checagem ainda não terminou.");
+        return ok(
+          store.updateClaim(claim.id, {
+            ...(speakerId ? { speakerId } : {}),
+            ...(claim.resultado ? { resultado: { ...claim.resultado, ...resultado } } : {}),
+            editado: true,
+          }),
+        );
+      }
+    }
+
+    return fail(404, "Rota não encontrada.");
+  }
+
+  return { handle, subscribe, isOperator };
+}

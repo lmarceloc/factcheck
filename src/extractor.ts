@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { allSpeakers, type AppConfig } from "./config.js";
+import { allSpeakers, type AppConfig } from "./config-core.js";
 import { baseParams, withFastFallback } from "./llm.js";
 import type { Claim, Segment } from "./shared/types.js";
 import { CATEGORIES } from "./shared/types.js";
