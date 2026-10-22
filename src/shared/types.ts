@@ -140,11 +140,16 @@ export interface Claim {
   erro?: string;
 }
 
+export const ORADOR_NAO_IDENTIFICADO = "orador não identificado";
+
 /**
  * Publicação automática: vai direto para a tela, exceto o que é incerto
- * (confiança baixa ou sem dados) ou exagerado, que espera revisão humana.
+ * (confiança baixa ou sem dados), exagerado ou sem orador identificado,
+ * que espera revisão humana.
  */
-export function motivoRevisao(r: CheckResult): string | null {
+export function motivoRevisao(r: CheckResult, speakerId: string): string | null {
+  // O público nunca vê "Não identificado": a redação escolhe o nome antes.
+  if (speakerId === AUTO_SPEAKER) return ORADOR_NAO_IDENTIFICADO;
   if (r.confianca === "baixa") return "confiança baixa";
   if (r.veredito === "insustentavel") return "sem dados para comprovar";
   if (r.veredito === "exagerado") return "exagerado";

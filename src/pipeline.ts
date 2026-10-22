@@ -130,13 +130,14 @@ export class Pipeline {
 
       // Candidatos repetem bordões: reaproveita a checagem já feita na hora.
       if (original?.resultado) {
-        const publish =
-          original.status === "publicada" || (this.store.autoPublish && !motivoRevisao(original.resultado));
+        const revisao = motivoRevisao(original.resultado, base.speakerId);
+        const publish = !revisao && (original.status === "publicada" || this.store.autoPublish);
         this.store.addClaim({
           ...base,
           repeteDe: original.id,
           resultado: original.resultado,
           status: publish ? "publicada" : "rascunho",
+          revisao: revisao ?? undefined,
           ...(publish ? { publishedAt: Date.now() } : {}),
         });
         continue;
@@ -168,7 +169,8 @@ export class Pipeline {
       // O editor pode ter descartado enquanto a checagem rodava.
       if (this.store.claims.get(id)?.status !== "verificando") return;
       // Publica direto, exceto o que é incerto ou exagerado: isso espera revisão humana.
-      const revisao = motivoRevisao(resultado);
+      // Vale o orador atual: a redação pode ter escolhido o nome durante a checagem.
+      const revisao = motivoRevisao(resultado, this.store.claims.get(id)?.speakerId ?? claim.speakerId);
       const publish = this.store.autoPublish && !revisao;
       this.store.updateClaim(id, {
         resultado,

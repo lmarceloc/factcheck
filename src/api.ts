@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Pipeline } from "./pipeline.js";
 import { markdownReport } from "./report.js";
 import type { Claim, PublicState, ServerEvent } from "./shared/types.js";
-import { AUTO_SPEAKER, VERDICTS } from "./shared/types.js";
+import { AUTO_SPEAKER, motivoRevisao, ORADOR_NAO_IDENTIFICADO, VERDICTS } from "./shared/types.js";
 import type { Store } from "./store.js";
 import type { SttSession } from "./stt.js";
 
@@ -187,6 +187,7 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
       const action = m[2];
       if (method === "POST" && action === "publish") {
         if (claim.tipo === "pergunta") return fail(409, "Perguntas ficam só no painel; não vão para o telão.");
+        if (claim.speakerId === AUTO_SPEAKER) return fail(409, "Escolha quem disse antes de publicar.");
         if (!claim.resultado) return fail(409, "A checagem ainda não terminou.");
         return ok(store.updateClaim(claim.id, { status: "publicada", publishedAt: Date.now() }));
       }
@@ -203,13 +204,19 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
         const { speakerId, ...resultado } = body.data;
         if (speakerId && !speakerIds.has(speakerId)) return fail(400, "Orador inválido.");
         if (!claim.resultado && Object.keys(resultado).length) return fail(409, "A checagem ainda não terminou.");
-        return ok(
-          store.updateClaim(claim.id, {
-            ...(speakerId ? { speakerId } : {}),
-            ...(claim.resultado ? { resultado: { ...claim.resultado, ...resultado } } : {}),
-            editado: true,
-          }),
-        );
+        const novoResultado = claim.resultado ? { ...claim.resultado, ...resultado } : undefined;
+        const patch: Partial<Claim> = {
+          ...(speakerId ? { speakerId } : {}),
+          ...(novoResultado ? { resultado: novoResultado } : {}),
+          editado: true,
+        };
+        // Retida só por falta de orador: com o nome escolhido, vai ao ar na hora.
+        if (speakerId && claim.status === "rascunho" && claim.revisao === ORADOR_NAO_IDENTIFICADO && novoResultado) {
+          const motivo = motivoRevisao(novoResultado, speakerId);
+          patch.revisao = motivo ?? undefined;
+          if (!motivo && store.autoPublish) Object.assign(patch, { status: "publicada", publishedAt: Date.now() });
+        }
+        return ok(store.updateClaim(claim.id, patch));
       }
     }
 
