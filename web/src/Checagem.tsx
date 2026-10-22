@@ -71,7 +71,6 @@ export function Checagem({ id }: { id: string }) {
         </a>
         <div className="assistir__titulo">
           <h1>{debate.titulo}</h1>
-          <span>{new Date(`${debate.data}T12:00:00`).toLocaleDateString("pt-BR", { dateStyle: "long" })}</span>
         </div>
         <a className="aovivo" href={voltar}>
           ← {arquivoId ? "Ver o debate" : "Voltar ao debate"}

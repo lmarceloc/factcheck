@@ -123,10 +123,7 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
         <Logo nome={debate.marca.nome} aoVivo={!arquivoId && settings.captura} />
         <div className="assistir__titulo">
           <h1>{debate.titulo}</h1>
-          <span>
-            {debate.emissora ? `${debate.emissora} · ` : ""}
-            {new Date(`${debate.data}T12:00:00`).toLocaleDateString("pt-BR", { dateStyle: "long" })}
-          </span>
+          {debate.emissora && <span>{debate.emissora}</span>}
         </div>
         {arquivoId ? (
           <a className="aovivo" href="/arquivos">

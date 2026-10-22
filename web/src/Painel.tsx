@@ -174,10 +174,7 @@ export function Painel() {
             {data.debate.titulo}
             {data.settings.demo && <span className="demo-tag">Simulação</span>}
           </h1>
-          <span>
-            {data.debate.emissora ? `${data.debate.emissora} · ` : ""}
-            {new Date(`${data.debate.data}T12:00:00`).toLocaleDateString("pt-BR", { dateStyle: "long" })}
-          </span>
+          {data.debate.emissora && <span>{data.debate.emissora}</span>}
         </div>
         <div className="topbar__stats">
           <Stat label="online" value={data.audiencia?.online ?? 0} pulse={(data.audiencia?.online ?? 0) > 0} />
