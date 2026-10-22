@@ -1811,6 +1811,36 @@ select:focus-visible {
   background: #ff4d5e;
   box-shadow: 0 0 12px #ff4d5e;
 }
+.assistir__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.plateia {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.plateia svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text);
+  opacity: 0.8;
+}
+.plateia strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
 .assistir__grid {
   margin-top: 18px;
   display: grid;

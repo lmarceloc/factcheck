@@ -1,8 +1,11 @@
 import type { ChecagemPublica } from "../../src/shared/types";
 import { VERDICT_LABELS } from "../../src/shared/types";
+import { PresencaBody } from "../../src/presenca";
 import type { Env } from "./debate";
+import { fatiaDe } from "./plateia";
 
 export { Debate } from "./debate";
+export { Plateia } from "./plateia";
 
 const PUBLIC_STATE = "/api/public/state";
 const PUBLIC_TTL_MS = 2000;
@@ -73,6 +76,20 @@ async function paginaChecagem(req: Request, env: Env, id: string): Promise<Respo
     .transform(pagina);
 }
 
+/**
+ * "Estou aqui" da tela do público (a cada 30 s, e ao fechar). Vai para uma das
+ * fatias da audiência, nunca direto para o debate.
+ */
+async function presenca(req: Request, env: Env): Promise<Response> {
+  // O navigator.sendBeacon (ao fechar a página) manda o corpo como texto.
+  const corpo = await req.text().then((t) => JSON.parse(t) as unknown).catch(() => null);
+  const body = PresencaBody.safeParse(corpo);
+  if (!body.success) return Response.json({ error: "Presença inválida." }, { status: 400 });
+  const fatia = env.PLATEIA.get(env.PLATEIA.idFromName(`plateia-${fatiaDe(body.data.id)}`));
+  await fatia.bater(body.data.id, body.data.saindo ?? false);
+  return new Response(null, { status: 204 });
+}
+
 // O site (tela do público, painel e telão) é servido dos arquivos estáticos;
 // só /api/* chega aqui e vai para o Durable Object do debate.
 export default {
@@ -82,6 +99,7 @@ export default {
     if (checagem && req.method === "GET") return paginaChecagem(req, env, checagem[1]);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
     if (req.method === "GET" && url.pathname === PUBLIC_STATE) return publicState(env, ctx);
+    if (req.method === "POST" && url.pathname === "/api/public/presenca") return presenca(req, env);
     const stub = env.DEBATE.get(env.DEBATE.idFromName("principal"));
     return stub.fetch(req);
   },

@@ -50,6 +50,8 @@ function reducer(state: DebateState, action: Action): DebateState {
       return { ...state, data: { ...data, currentSpeaker: action.speakerId } };
     case "settings":
       return { ...state, data: { ...data, settings: action.settings } };
+    case "audiencia":
+      return { ...state, data: { ...data, audiencia: action.audiencia } };
   }
   return state;
 }

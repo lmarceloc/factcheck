@@ -177,6 +177,8 @@ export interface PublicState {
   claims: Claim[];
   /** captura: a redação está transcrevendo agora; youtube: vídeo da transmissão. */
   settings: { autoPublish: boolean; demo: boolean; captura: boolean; youtube: string | null };
+  /** Quem está com a tela do público aberta. O público só recebe `online`. */
+  audiencia: Audiencia;
 }
 
 /** Uma checagem publicada, com o que a página própria dela precisa mostrar. */
@@ -189,6 +191,13 @@ export interface ChecagemPublica {
 }
 
 /** Debate encerrado e guardado: aparece na lista de debates anteriores. */
+/** online: agora; pico: o máximo ao mesmo tempo; visitantes: pessoas diferentes no debate todo. */
+export interface Audiencia {
+  online: number;
+  pico?: number;
+  visitantes?: number;
+}
+
 export interface ArquivoResumo {
   id: string;
   titulo: string;
@@ -196,6 +205,9 @@ export interface ArquivoResumo {
   encerradoEm: number;
   youtube: string | null;
   checagens: number;
+  /** Só para a redação. */
+  pico?: number;
+  visitantes?: number;
 }
 
 export type ServerEvent =
@@ -206,4 +218,5 @@ export type ServerEvent =
   /** Só no telão: a checagem saiu do ar (despublicada ou descartada). */
   | { type: "claim_hidden"; id: string }
   | { type: "speaker"; speakerId: string | null }
-  | { type: "settings"; settings: PublicState["settings"] };
+  | { type: "settings"; settings: PublicState["settings"] }
+  | { type: "audiencia"; audiencia: Audiencia };

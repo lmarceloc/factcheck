@@ -14,9 +14,11 @@ import { Store } from "../../src/store";
 import { SqlPersistence } from "../../src/store-sql";
 import { createSttSession } from "../../src/stt";
 import { createBriefer, createVerifier } from "../../src/verifier";
+import type { Plateia } from "./plateia";
 
 export interface Env {
   DEBATE: DurableObjectNamespace<Debate>;
+  PLATEIA: DurableObjectNamespace<Plateia>;
   ASSETS: Fetcher;
   DADOS?: Fetcher;
   OPENAI_API_KEY?: string;
@@ -94,6 +96,11 @@ export class Debate extends DurableObject<Env> {
       return new Response(r.text, { status: r.status, headers: { "content-type": r.contentType ?? "text/plain" } });
     }
     return Response.json(r.json, { status: r.status });
+  }
+
+  /** Chamado pelas fatias da audiência (Plateia). Devolve a sessão do debate atual. */
+  registrarPresenca(fonte: string, online: number, novos: number): string {
+    return this.store.registrarPresenca(fonte, online, novos);
   }
 
   private sse(req: Request, url: URL, view: "operator" | "public"): Response {

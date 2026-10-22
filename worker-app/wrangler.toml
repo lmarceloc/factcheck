@@ -24,9 +24,18 @@ run_worker_first = ["/api/*", "/checagem/*"]
 name = "DEBATE"
 class_name = "Debate"
 
+# Audiência: 16 fatias contam quem está com a tela do público aberta.
+[[durable_objects.bindings]]
+name = "PLATEIA"
+class_name = "Plateia"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Debate"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Plateia"]
 
 # Chamada interna ao gateway de dados oficiais (sem passar pela internet pública).
 [[services]]

@@ -22,6 +22,9 @@ export class FilePersistence implements Persistence {
         youtube: data.youtube ?? null,
         captura: data.captura ?? false,
         capturaVistaEm: data.capturaVistaEm ?? 0,
+        pico: data.pico ?? 0,
+        visitantes: data.visitantes ?? 0,
+        sessaoPresenca: data.sessaoPresenca,
       };
       for (const c of data.claims ?? []) this.claims.set(c.id, c);
       return data;

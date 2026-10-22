@@ -171,6 +171,9 @@ export function Painel() {
           </span>
         </div>
         <div className="topbar__stats">
+          <Stat label="online" value={data.audiencia?.online ?? 0} pulse={(data.audiencia?.online ?? 0) > 0} />
+          <Stat label="pico" value={data.audiencia?.pico ?? 0} />
+          <Stat label="visitantes" value={data.audiencia?.visitantes ?? 0} />
           <Stat label="checando" value={checking} pulse={checking > 0} />
           <Stat label="para revisar" value={review} highlight={review > 0} />
         </div>
@@ -343,7 +346,7 @@ function Stat({ label, value, pulse, highlight }: { label: string; value: number
   return (
     <div className={`stat ${highlight ? "stat--hl" : ""}`}>
       <motion.strong key={value} initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-        {value}
+        {value.toLocaleString("pt-BR")}
       </motion.strong>
       <span>
         {pulse && <motion.i animate={{ scale: [1, 1.6, 1], opacity: [1, 0.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />}

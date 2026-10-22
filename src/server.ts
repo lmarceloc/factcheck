@@ -9,6 +9,7 @@ import { loadConfig } from "./config.js";
 import { createExtractor } from "./extractor.js";
 import { createOpenAI } from "./llm.js";
 import { Pipeline } from "./pipeline.js";
+import { Presenca, PRESENCA_CICLO_MS } from "./presenca.js";
 import { Store } from "./store.js";
 import { FilePersistence } from "./store-file.js";
 import { createBriefer, createVerifier } from "./verifier.js";
@@ -36,8 +37,21 @@ const pipeline = config.DEMO_MODE
         brief: createBriefer(client, config, dados),
       });
     })();
+// Audiência: uma contagem só, fechada a cada ciclo e entregue ao debate.
+const presenca = new Presenca();
+let sessaoPresenca = store.sessaoPresenca;
+setInterval(() => {
+  const { online, novos } = presenca.ciclo();
+  const sessao = store.registrarPresenca("local", online, novos);
+  if (sessao !== sessaoPresenca) {
+    sessaoPresenca = sessao;
+    presenca.novaSessao();
+  }
+}, PRESENCA_CICLO_MS).unref();
+
 const app = createApp(store, pipeline, {
   operatorToken: config.OPERATOR_TOKEN,
+  presenca,
   createSttSession: config.ASSEMBLYAI_API_KEY ? () => createSttSession(config) : undefined,
 });
 

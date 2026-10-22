@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PresencaBody, type Presenca } from "./presenca.js";
 import type { Pipeline } from "./pipeline.js";
 import { markdownReport } from "./report.js";
 import type { Claim, PublicState, ServerEvent } from "./shared/types.js";
@@ -29,6 +30,8 @@ export interface ApiOptions {
   /** No Cloudflare o token é obrigatório: sem ele o painel fica fechado. */
   requireOperatorToken?: boolean;
   createSttSession?: () => Promise<SttSession>;
+  /** Contagem de audiência local (Node). No Cloudflare o Worker cuida disso antes de chegar aqui. */
+  presenca?: Presenca;
 }
 
 const isPublic = (c: Claim) => c.status === "publicada";
@@ -45,7 +48,12 @@ export function publicClaim(c: Claim): Claim {
 
 /** O público só enxerga o que o editor publicou: nada de rascunho, transcrição bruta ou nota interna. */
 export function publicSnapshot(state: PublicState): PublicState {
-  return { ...state, segments: [], claims: state.claims.filter(isPublic).map(publicClaim) };
+  return {
+    ...state,
+    segments: [],
+    claims: state.claims.filter(isPublic).map(publicClaim),
+    audiencia: { online: state.audiencia?.online ?? 0 },
+  };
 }
 
 export function publicEvent(event: ServerEvent): ServerEvent | null {
@@ -54,6 +62,8 @@ export function publicEvent(event: ServerEvent): ServerEvent | null {
       return { type: "snapshot", state: publicSnapshot(event.state) };
     case "claim":
       return isPublic(event.claim) ? { type: "claim", claim: publicClaim(event.claim) } : { type: "claim_hidden", id: event.claim.id };
+    case "audiencia":
+      return { type: "audiencia", audiencia: { online: event.audiencia.online } };
     case "segment":
     case "interim":
       return null;
@@ -124,7 +134,16 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
       return achada ? ok({ ...achada, claim: publicClaim(achada.claim) }) : fail(404, "Checagem não encontrada.");
     }
     // Debates encerrados: lista e cada um completo (o público vê só o que foi publicado).
-    if (route === "GET /api/arquivos") return ok(store.listArchives());
+    if (route === "GET /api/arquivos") {
+      const lista = store.listArchives();
+      return ok(isOperator(req) ? lista : lista.map(({ pico: _p, visitantes: _v, ...r }) => r));
+    }
+    if (route === "POST /api/public/presenca" && opts.presenca) {
+      const body = PresencaBody.safeParse(req.body);
+      if (!body.success) return fail(400, "Presença inválida.");
+      opts.presenca.bater(body.data.id, body.data.saindo);
+      return ok({ ok: true });
+    }
     const arq = path.match(/^\/api\/arquivos\/([\w-]+)$/);
     if (arq && method === "GET") {
       const estado = store.getArchive(arq[1]);

@@ -11,6 +11,7 @@ import { VERDICT_STYLE, softSpring } from "./theme";
 import { usePublicState } from "./usePublicState";
 import { Player } from "./components/Player";
 import { formatarTempo, useYouTube } from "./useYouTube";
+import { usePresenca } from "./usePresenca";
 
 /** Debate arquivado: carrega uma vez (não muda mais). */
 function useArquivo(id: string | undefined) {
@@ -51,6 +52,7 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
   const data = arquivoId ? arquivo.data : aoVivo.data;
   const online = arquivoId ? !arquivo.erro : aoVivo.online;
   const yt = useYouTube(data?.settings.youtube ?? null);
+  usePresenca(!arquivoId);
   const playerArea = useRef<HTMLDivElement>(null);
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -131,7 +133,10 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
             Debate encerrado · ver outros
           </a>
         ) : (
-          <AoVivo ativo={settings.captura} online={online} />
+          <div className="assistir__status">
+            <Plateia pessoas={data.audiencia?.online ?? 0} aoVivo={settings.captura} />
+            <AoVivo ativo={settings.captura} online={online} />
+          </div>
         )}
       </header>
 
@@ -204,6 +209,32 @@ function AoVivo({ ativo, online }: { ativo: boolean; online: boolean }) {
     <div className={`aovivo ${ativo ? "aovivo--on" : ""}`}>
       <motion.i animate={ativo ? { scale: [1, 1.5, 1], opacity: [1, 0.4, 1] } : {}} transition={{ duration: 1.4, repeat: Infinity }} />
       {!online ? "Reconectando…" : ativo ? "Checando ao vivo" : "Aguardando a transmissão"}
+    </div>
+  );
+}
+
+/** Quantas pessoas estão com a tela aberta agora (some enquanto a contagem não chega). */
+function Plateia({ pessoas, aoVivo }: { pessoas: number; aoVivo: boolean }) {
+  if (pessoas < 1) return null;
+  const n = pessoas.toLocaleString("pt-BR");
+  return (
+    <div className="plateia" title="Pessoas com esta página aberta agora">
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path
+          d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"
+          stroke="currentColor"
+          strokeWidth="2"
+          fill="none"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="12" r="3" fill="currentColor" />
+      </svg>
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.strong key={n} initial={{ y: -8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 8, opacity: 0 }}>
+          {n}
+        </motion.strong>
+      </AnimatePresence>
+      <span>{aoVivo ? "acompanhando" : "na sala"}</span>
     </div>
   );
 }

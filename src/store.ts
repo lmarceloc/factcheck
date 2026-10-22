@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { ArquivoResumo, ChecagemPublica, Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
+import type { ArquivoResumo, Audiencia, ChecagemPublica, Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
 
 export interface Meta {
   currentSpeaker: string | null;
@@ -8,7 +8,14 @@ export interface Meta {
   /** A redação ligou a transcrição e o último sinal de vida dela (o painel avisa a cada minuto). */
   captura?: boolean;
   capturaVistaEm?: number;
+  /** Audiência do debate atual (o "online" não é gravado: some se ninguém avisar). */
+  pico?: number;
+  visitantes?: number;
+  sessaoPresenca?: string;
 }
+
+/** Uma fatia da contagem de audiência que parar de avisar por este tempo deixa de contar. */
+const FONTE_PRESENCA_VALIDADE_MS = 30_000;
 
 /** Sem sinal do painel por este tempo, a tela pública deixa de dizer "Checando ao vivo". */
 export const CAPTURA_VALIDADE_MS = 3 * 60_000;
@@ -40,6 +47,11 @@ export class Store extends EventEmitter {
   private capturaLigada = false;
   private capturaVistaEm = 0;
   youtube: string | null = null;
+  pico = 0;
+  visitantes = 0;
+  /** Muda a cada debate: as fatias da contagem zeram os visitantes quando percebem. */
+  sessaoPresenca: string = crypto.randomUUID();
+  private readonly fontesPresenca = new Map<string, { online: number; at: number }>();
   readonly demo: boolean;
   private readonly persistence?: Persistence;
 
@@ -62,7 +74,35 @@ export class Store extends EventEmitter {
       segments: this.segments,
       claims: [...this.claims.values()],
       settings: this.settings(),
+      audiencia: this.audiencia(),
     };
+  }
+
+  get online() {
+    const agora = Date.now();
+    let total = 0;
+    for (const f of this.fontesPresenca.values()) if (agora - f.at < FONTE_PRESENCA_VALIDADE_MS) total += f.online;
+    return total;
+  }
+
+  audiencia(): Audiencia {
+    return { online: this.online, pico: this.pico, visitantes: this.visitantes };
+  }
+
+  /**
+   * Recebe a contagem de uma fatia da audiência (quantos online nela e quantos
+   * visitantes novos desde o último aviso). Devolve a sessão atual do debate.
+   */
+  registrarPresenca(fonte: string, online: number, novos: number): string {
+    const antes = this.audiencia();
+    this.fontesPresenca.set(fonte, { online, at: Date.now() });
+    for (const [k, f] of this.fontesPresenca) if (Date.now() - f.at >= FONTE_PRESENCA_VALIDADE_MS) this.fontesPresenca.delete(k);
+    this.visitantes += novos;
+    this.pico = Math.max(this.pico, this.online);
+    const agora = this.audiencia();
+    if (agora.pico !== antes.pico || novos > 0) this.saveMeta();
+    if (agora.online !== antes.online || agora.pico !== antes.pico || novos > 0) this.emitEvent({ type: "audiencia", audiencia: agora });
+    return this.sessaoPresenca;
   }
 
   get captura() {
@@ -95,6 +135,9 @@ export class Store extends EventEmitter {
       youtube: this.youtube,
       captura: this.capturaLigada,
       capturaVistaEm: this.capturaVistaEm,
+      pico: this.pico,
+      visitantes: this.visitantes,
+      sessaoPresenca: this.sessaoPresenca,
     });
   }
 
@@ -155,14 +198,24 @@ export class Store extends EventEmitter {
       encerradoEm: Date.now(),
       youtube: this.youtube,
       checagens: estado.claims.filter((c) => c.status === "publicada" && !c.repeteDe).length,
+      pico: this.pico,
+      visitantes: this.visitantes,
     };
-    this.persistence?.saveArchive(resumo, { ...estado, settings: { ...estado.settings, captura: false } });
+    this.persistence?.saveArchive(resumo, {
+      ...estado,
+      settings: { ...estado.settings, captura: false },
+      audiencia: { ...estado.audiencia, online: 0 },
+    });
     this.persistence?.clear();
     this.segments = [];
     this.claims.clear();
     this.currentSpeaker = null;
     this.youtube = null;
     this.capturaLigada = false;
+    this.pico = this.online;
+    this.visitantes = 0;
+    this.sessaoPresenca = crypto.randomUUID();
+    this.saveMeta();
     this.emitEvent({ type: "snapshot", state: this.snapshot() });
     return resumo;
   }
@@ -203,6 +256,9 @@ export class Store extends EventEmitter {
     this.youtube = data.youtube ?? null;
     this.capturaLigada = data.captura ?? false;
     this.capturaVistaEm = data.capturaVistaEm ?? 0;
+    this.pico = data.pico ?? 0;
+    this.visitantes = data.visitantes ?? 0;
+    if (data.sessaoPresenca) this.sessaoPresenca = data.sessaoPresenca;
     for (const claim of data.claims ?? []) {
       // Checagens interrompidas por um reinício voltam para a fila.
       if (claim.status === "verificando") claim.status = "na_fila";
