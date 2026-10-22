@@ -170,6 +170,7 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
       if (!claim) return fail(404, "Afirmação não encontrada.");
       const action = m[2];
       if (method === "POST" && action === "publish") {
+        if (claim.tipo === "pergunta") return fail(409, "Perguntas ficam só no painel; não vão para o telão.");
         if (!claim.resultado) return fail(409, "A checagem ainda não terminou.");
         return ok(store.updateClaim(claim.id, { status: "publicada", publishedAt: Date.now() }));
       }

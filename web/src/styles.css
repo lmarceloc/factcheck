@@ -1697,3 +1697,48 @@ select:focus-visible {
   border: 2px solid var(--c);
   flex: none;
 }
+
+/* ---------- perguntas ---------- */
+
+.chip--pergunta {
+  color: #ddd6fe;
+  background: rgba(167, 139, 250, 0.18);
+}
+.claim--pergunta-card::before {
+  background: #a78bfa;
+}
+.claim__context {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+}
+.claim__context-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #c4b5fd;
+}
+.claim__context .claim__summary {
+  margin-top: 6px;
+}
+.claim__context-data {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+.claim__points {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  color: #e2e8f0;
+}
+.claim__points li::marker {
+  color: #a78bfa;
+}

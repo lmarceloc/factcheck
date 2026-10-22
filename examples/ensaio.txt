@@ -1,6 +1,6 @@
 # Transcrição de ensaio. Formato: id_do_orador: fala
 # Linhas começando com # são ignoradas. Os ids vêm de config/debate.json.
-mediador: Boa noite. Vamos começar o primeiro bloco, sobre economia. Candidato A, o senhor tem dois minutos.
+mediador: Boa noite. Vamos começar o primeiro bloco, sobre economia. Candidato A, o desemprego no país caiu ou subiu nos últimos quatro anos? O senhor tem dois minutos.
 a: Boa noite a todos. Quando eu fui governador, o estado gerou mais de 400 mil empregos com carteira assinada em quatro anos.
 a: E a minha adversária, quando era ministra, deixou a inflação passar de 10% ao ano. Isso é fato, está nos dados do IBGE.
 mediador: Candidata B, sua réplica.

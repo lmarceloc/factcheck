@@ -4,7 +4,7 @@ import { allSpeakers, type AppConfig } from "./config-core.js";
 import type { ClienteDados } from "./data/cliente.js";
 import { definirFerramentas, executarFerramenta, FERRAMENTAS_DADOS, textoRota, type FerramentaDados } from "./data/ferramentas.js";
 import { SourceCollector } from "./sources.js";
-import type { CheckResult, Claim, Segment } from "./shared/types.js";
+import type { CheckResult, Claim, ContextResult, Segment } from "./shared/types.js";
 import { CATEGORY_LABELS, VERDICTS } from "./shared/types.js";
 
 const VERDICT_TOOL = "registrar_veredito";
@@ -135,111 +135,232 @@ const isDataTool = (name: string): name is FerramentaDados => (FERRAMENTAS_DADOS
 type FunctionCall = OpenAI.Responses.ResponseFunctionToolCall;
 type InputItem = OpenAI.Responses.ResponseInputItem;
 
+function webSearchTool(): OpenAI.Responses.Tool {
+  return {
+    type: "web_search",
+    search_context_size: "medium",
+    user_location: { type: "approximate", country: "BR", timezone: "America/Sao_Paulo" },
+  };
+}
+
+interface Pesquisa<T> {
+  instructions: string;
+  prompt: string;
+  /** Ferramenta que encerra a pesquisa (veredito ou contexto). */
+  finalTool: OpenAI.Responses.FunctionTool;
+  finalSchema: z.ZodType<T>;
+  onProgress: (queries: string[]) => void;
+}
+
+/**
+ * Laço de pesquisa na API Responses: busca na web e fontes oficiais até o
+ * modelo chamar a ferramenta final, cujo resultado é validado pelo esquema.
+ */
+async function pesquisar<T>(
+  client: OpenAI,
+  config: AppConfig,
+  dados: ClienteDados | null,
+  p: Pesquisa<T>,
+): Promise<{ final: T; sources: SourceCollector; modelo: string; duracaoMs: number }> {
+  const started = Date.now();
+  const sources = new SourceCollector();
+  const tools: OpenAI.Responses.Tool[] = [
+    webSearchTool(),
+    ...(dados ? definirFerramentas(config.registro, dados) : []),
+    p.finalTool,
+  ];
+  const finalName = p.finalTool.name;
+  let input: string | InputItem[] = p.prompt;
+  let previous: string | undefined;
+  let nudged = false;
+
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const params: OpenAI.Responses.ResponseCreateParamsStreaming = {
+      stream: true,
+      model: config.VERIFICATION_MODEL,
+      instructions: p.instructions,
+      input,
+      tools,
+      tool_choice: "auto",
+      reasoning: { effort: config.VERIFICATION_EFFORT },
+      max_output_tokens: 32000,
+      include: ["web_search_call.action.sources"],
+      // A conversa continua no servidor da OpenAI: cada rodada só manda o que é novo.
+      ...(previous ? { previous_response_id: previous } : {}),
+    };
+    const stream = client.responses.stream(params);
+    // Mostra no painel cada busca assim que ela termina.
+    stream.on("response.output_item.done", (event) => {
+      if (event.item.type === "web_search_call") {
+        sources.addItem(event.item);
+        p.onProgress([...sources.queries]);
+      }
+    });
+    const response: OpenAI.Responses.Response = await stream.finalResponse();
+    previous = response.id;
+    sources.addItems(response.output.filter((item) => item.type !== "web_search_call"));
+
+    if (response.status === "failed") throw new Error(`A pesquisa falhou: ${response.error?.message ?? "erro da OpenAI"}`);
+    const refusal = response.output
+      .flatMap((item) => (item.type === "message" ? item.content : []))
+      .find((part) => part.type === "refusal");
+    if (refusal && refusal.type === "refusal") throw new Error(`Recusado pelo modelo: ${refusal.refusal}`);
+
+    const calls = response.output.filter((item): item is FunctionCall => item.type === "function_call");
+    if (response.status === "incomplete" && calls.length) {
+      throw new Error(`Resposta cortada (${response.incomplete_details?.reason ?? "incompleta"}).`);
+    }
+
+    const call = calls.find((c) => c.name === finalName);
+    if (call) {
+      const parsed = p.finalSchema.safeParse(safeJson(call.arguments));
+      if (parsed.success) return { final: parsed.data, sources, modelo: response.model, duracaoMs: Date.now() - started };
+    }
+
+    if (calls.length) {
+      // Executa as consultas às fontes oficiais em paralelo e devolve todos os resultados juntos.
+      input = await Promise.all(
+        calls.map(async (c): Promise<InputItem> => {
+          const out = (output: string): InputItem => ({ type: "function_call_output", call_id: c.call_id, output });
+          if (c.name === finalName) {
+            const issues = p.finalSchema.safeParse(safeJson(c.arguments)).error?.message ?? "entrada inválida";
+            return out(`Entrada inválida: ${issues}. Chame ${finalName} de novo com os campos corretos.`);
+          }
+          if (!dados || !isDataTool(c.name)) return out(`Ferramenta desconhecida: ${c.name}`);
+          const r = await executarFerramenta(c.name, safeJson(c.arguments), dados, config.registro);
+          sources.addConsulta(r.rotulo);
+          if (r.fonte) sources.addOficial(r.fonte.url, r.fonte.titulo);
+          return out(r.texto);
+        }),
+      );
+      p.onProgress([...sources.queries]);
+      continue;
+    }
+
+    if (!nudged) {
+      nudged = true;
+      input = [{ role: "user", content: `Encerre agora chamando ${finalName}, com base no que já pesquisou.` }];
+      continue;
+    }
+
+    throw new Error(`A pesquisa terminou sem resultado (status: ${response.status}).`);
+  }
+  throw new Error("A pesquisa excedeu o número de rodadas.");
+}
+
 export function createVerifier(client: OpenAI, config: AppConfig, dados: ClienteDados | null = null): Verifier {
   const instructions = verificationSystemPrompt(config, dados !== null);
-  const tools: OpenAI.Responses.Tool[] = [
-    {
-      type: "web_search",
-      search_context_size: "medium",
-      user_location: { type: "approximate", country: "BR", timezone: "America/Sao_Paulo" },
-    },
-    ...(dados ? definirFerramentas(config.registro, dados) : []),
-    verdictTool,
-  ];
-
   return async (claim, context, onProgress) => {
-    const started = Date.now();
-    const sources = new SourceCollector();
-    let input: string | InputItem[] = verificationUserPrompt(config, claim, context, textoRota(config.registro, claim.tema, dados));
-    let previous: string | undefined;
-    let nudged = false;
+    const { final: v, sources, modelo, duracaoMs } = await pesquisar(client, config, dados, {
+      instructions,
+      prompt: verificationUserPrompt(config, claim, context, textoRota(config.registro, claim.tema, dados)),
+      finalTool: verdictTool,
+      finalSchema: VerdictInputSchema,
+      onProgress,
+    });
+    return {
+      veredito: v.veredito,
+      resumo: v.resumo,
+      explicacao: v.explicacao,
+      dados: v.dados,
+      confianca: v.confianca,
+      nota_editor: v.nota_editor,
+      fontes: sources.resolve(v.fontes),
+      buscas: [...sources.queries],
+      modelo,
+      duracaoMs,
+    };
+  };
+}
 
-    for (let round = 0; round < MAX_ROUNDS; round++) {
-      const params: OpenAI.Responses.ResponseCreateParamsStreaming = {
-        stream: true,
-        model: config.VERIFICATION_MODEL,
-        instructions,
-        input,
-        tools,
-        tool_choice: "auto",
-        reasoning: { effort: config.VERIFICATION_EFFORT },
-        max_output_tokens: 32000,
-        include: ["web_search_call.action.sources"],
-        // A conversa continua no servidor da OpenAI: cada rodada só manda o que é novo.
-        ...(previous ? { previous_response_id: previous } : {}),
-      };
-      const stream = client.responses.stream(params);
-      // Mostra no painel cada busca assim que ela termina.
-      stream.on("response.output_item.done", (event) => {
-        if (event.item.type === "web_search_call") {
-          sources.addItem(event.item);
-          onProgress([...sources.queries]);
-        }
-      });
-      const response: OpenAI.Responses.Response = await stream.finalResponse();
-      previous = response.id;
-      sources.addItems(response.output.filter((item) => item.type !== "web_search_call"));
+// ---------- perguntas: contexto para acompanhar a resposta ----------
 
-      if (response.status === "failed") throw new Error(`A checagem falhou: ${response.error?.message ?? "erro da OpenAI"}`);
-      const refusal = response.output
-        .flatMap((item) => (item.type === "message" ? item.content : []))
-        .find((part) => part.type === "refusal");
-      if (refusal && refusal.type === "refusal") throw new Error(`Checagem recusada pelo modelo: ${refusal.refusal}`);
+const CONTEXT_TOOL = "registrar_contexto";
 
-      const calls = response.output.filter((item): item is FunctionCall => item.type === "function_call");
-      if (response.status === "incomplete" && calls.length) {
-        throw new Error(`Resposta cortada (${response.incomplete_details?.reason ?? "incompleta"}).`);
-      }
+export const ContextInputSchema = z.object({
+  resumo: z.string(),
+  dados: z.string(),
+  pontos: z.array(z.string()),
+  fontes: z.array(z.object({ titulo: z.string(), url: z.string(), trecho: z.string().nullable() })),
+});
 
-      const call = calls.find((c) => c.name === VERDICT_TOOL);
-      if (call) {
-        const parsed = VerdictInputSchema.safeParse(safeJson(call.arguments));
-        if (parsed.success) {
-          const v = parsed.data;
-          return {
-            veredito: v.veredito,
-            resumo: v.resumo,
-            explicacao: v.explicacao,
-            dados: v.dados,
-            confianca: v.confianca,
-            nota_editor: v.nota_editor,
-            fontes: sources.resolve(v.fontes),
-            buscas: [...sources.queries],
-            modelo: response.model,
-            duracaoMs: Date.now() - started,
-          };
-        }
-      }
+const contextTool: OpenAI.Responses.FunctionTool = {
+  type: "function",
+  name: CONTEXT_TOOL,
+  description: "Registra o contexto pesquisado para a pergunta. Chame uma vez, depois de pesquisar, para encerrar.",
+  strict: true,
+  parameters: {
+    type: "object",
+    additionalProperties: false,
+    required: ["resumo", "dados", "pontos", "fontes"],
+    properties: {
+      resumo: { type: "string", description: "Uma ou duas frases: o que os dados oficiais dizem sobre o assunto da pergunta." },
+      dados: { type: "string", description: "Os números principais, com período e órgão de origem." },
+      pontos: {
+        type: "array",
+        items: { type: "string" },
+        description: "Até 4 pontos para o checador observar na resposta (afirmações prováveis, números que costumam ser distorcidos).",
+      },
+      fontes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["titulo", "url", "trecho"],
+          properties: { titulo: { type: "string" }, url: { type: "string" }, trecho: { type: ["string", "null"] } },
+        },
+      },
+    },
+  },
+};
 
-      if (calls.length) {
-        // Executa as consultas às fontes oficiais em paralelo e devolve todos os resultados juntos.
-        input = await Promise.all(
-          calls.map(async (c): Promise<InputItem> => {
-            const out = (output: string): InputItem => ({ type: "function_call_output", call_id: c.call_id, output });
-            if (c.name === VERDICT_TOOL) {
-              const issues = VerdictInputSchema.safeParse(safeJson(c.arguments)).error?.message ?? "entrada inválida";
-              return out(`Entrada inválida: ${issues}. Chame ${VERDICT_TOOL} de novo com os campos corretos.`);
-            }
-            if (!dados || !isDataTool(c.name)) return out(`Ferramenta desconhecida: ${c.name}`);
-            const r = await executarFerramenta(c.name, safeJson(c.arguments), dados, config.registro);
-            sources.addConsulta(r.rotulo);
-            if (r.fonte) sources.addOficial(r.fonte.url, r.fonte.titulo);
-            return out(r.texto);
-          }),
-        );
-        onProgress([...sources.queries]);
-        continue;
-      }
+export type Briefer = (
+  question: Claim,
+  context: Segment[],
+  onProgress: (queries: string[]) => void,
+) => Promise<ContextResult>;
 
-      if (!nudged) {
-        nudged = true;
-        input = [{ role: "user", content: `Registre agora o veredito chamando ${VERDICT_TOOL}, com base no que já pesquisou.` }];
-        continue;
-      }
+export function createBriefer(client: OpenAI, config: AppConfig, dados: ClienteDados | null = null): Briefer {
+  const instructions = `${verificationSystemPrompt(config, dados !== null)}
 
-      throw new Error(`A checagem terminou sem veredito (status: ${response.status}).`);
-    }
-    throw new Error("A checagem excedeu o número de rodadas.");
+Nesta tarefa não há afirmação para julgar: alguém fez uma pergunta no debate e a resposta ainda vai ser dada. Pesquise os fatos e dados oficiais sobre o assunto, para a redação checar a resposta assim que ela vier, e encerre com ${CONTEXT_TOOL} (não use ${VERDICT_TOOL}). Seja rápido e objetivo.`;
+  const names = new Map(allSpeakers(config.debate).map((s) => [s.id, s.nome]));
+
+  return async (q, context, onProgress) => {
+    const ctx = context.map((s) => `${names.get(s.speakerId) ?? "[transmissão]"}: ${s.text}`).join("\n");
+    const prompt = `<pergunta>
+Quem pergunta: ${names.get(q.speakerId) ?? "não identificado"}
+Para quem: ${q.alvo ? (names.get(q.alvo) ?? q.alvo) : "não identificado"}
+Pergunta: ${q.afirmacao}
+Como foi dita: "${q.trecho}"
+</pergunta>
+
+<contexto_da_fala>
+${ctx || "(sem contexto)"}
+</contexto_da_fala>
+
+<rota_de_fontes>
+${textoRota(config.registro, q.tema, dados)}
+</rota_de_fontes>
+
+Pesquise o contexto e registre com ${CONTEXT_TOOL}.`;
+
+    const { final, sources, modelo, duracaoMs } = await pesquisar(client, config, dados, {
+      instructions,
+      prompt,
+      finalTool: contextTool,
+      finalSchema: ContextInputSchema,
+      onProgress,
+    });
+    return {
+      resumo: final.resumo,
+      dados: final.dados,
+      pontos: final.pontos.slice(0, 6),
+      fontes: sources.resolve(final.fontes),
+      buscas: [...sources.queries],
+      modelo,
+      duracaoMs,
+    };
   };
 }
 

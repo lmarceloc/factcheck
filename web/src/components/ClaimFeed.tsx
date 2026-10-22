@@ -1,16 +1,18 @@
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useState } from "react";
-import type { Claim, ClaimStatus, SpeakerInfo } from "../../../src/shared/types";
+import type { Claim, SpeakerInfo } from "../../../src/shared/types";
 import { spring } from "../theme";
 import { AnimatedNumber } from "./AnimatedNumber";
 import { ClaimCard } from "./ClaimCard";
 
-const TABS: { id: string; label: string; statuses: ClaimStatus[] }[] = [
-  { id: "todas", label: "Todas", statuses: ["na_fila", "verificando", "rascunho", "publicada", "erro"] },
-  { id: "checando", label: "Checando", statuses: ["na_fila", "verificando"] },
-  { id: "revisar", label: "Revisar", statuses: ["rascunho", "erro"] },
-  { id: "no-ar", label: "No ar", statuses: ["publicada"] },
-  { id: "descartadas", label: "Descartadas", statuses: ["descartada"] },
+const isQ = (c: Claim) => c.tipo === "pergunta";
+const TABS: { id: string; label: string; match: (c: Claim) => boolean }[] = [
+  { id: "todas", label: "Todas", match: (c) => c.status !== "descartada" },
+  { id: "checando", label: "Checando", match: (c) => !isQ(c) && (c.status === "na_fila" || c.status === "verificando") },
+  { id: "revisar", label: "Revisar", match: (c) => !isQ(c) && (c.status === "rascunho" || c.status === "erro") },
+  { id: "perguntas", label: "Perguntas", match: (c) => isQ(c) && c.status !== "descartada" },
+  { id: "no-ar", label: "No ar", match: (c) => c.status === "publicada" },
+  { id: "descartadas", label: "Descartadas", match: (c) => c.status === "descartada" },
 ];
 
 interface Props {
@@ -24,7 +26,7 @@ export function ClaimFeed({ claims, speakers, candidates }: Props) {
   const [tab, setTab] = useState("todas");
   const active = TABS.find((t) => t.id === tab)!;
   const visible = claims
-    .filter((c) => active.statuses.includes(c.status))
+    .filter(active.match)
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, 80);
 
@@ -33,7 +35,7 @@ export function ClaimFeed({ claims, speakers, candidates }: Props) {
       <LayoutGroup id="tabs">
         <nav className="tabs" role="tablist">
           {TABS.map((t) => {
-            const count = claims.filter((c) => t.statuses.includes(c.status)).length;
+            const count = claims.filter(t.match).length;
             return (
               <button key={t.id} role="tab" aria-selected={t.id === tab} className="tab" onClick={() => setTab(t.id)}>
                 {t.id === tab && <motion.span layoutId="tab-bg" className="tab__bg" transition={spring} />}

@@ -114,7 +114,7 @@ export function Painel() {
   if (!data) return <Loading connected={connected} />;
 
   const checking = claimList.filter((c) => c.status === "verificando" || c.status === "na_fila").length;
-  const review = claimList.filter((c) => c.status === "rascunho").length;
+  const review = claimList.filter((c) => c.status === "rascunho" && c.tipo !== "pergunta").length;
 
   return (
     <div className="painel">

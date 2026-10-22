@@ -4,7 +4,7 @@ import debateConfig from "../generated/debate.json";
 import { createApi } from "../../src/api";
 import { configFromEnv, type AppConfig } from "../../src/config-core";
 import { ClienteGateway, type ClienteDados } from "../../src/data/cliente";
-import { demoExtractor, demoVerifier } from "../../src/demo";
+import { demoBriefer, demoExtractor, demoVerifier } from "../../src/demo";
 import { createExtractor } from "../../src/extractor";
 import { createOpenAI } from "../../src/llm";
 import { Pipeline } from "../../src/pipeline";
@@ -13,7 +13,7 @@ import type { ServerEvent } from "../../src/shared/types";
 import { Store } from "../../src/store";
 import { SqlPersistence } from "../../src/store-sql";
 import { createSttSession } from "../../src/stt";
-import { createVerifier } from "../../src/verifier";
+import { createBriefer, createVerifier } from "../../src/verifier";
 
 export interface Env {
   DEBATE: DurableObjectNamespace<Debate>;
@@ -58,10 +58,12 @@ export class Debate extends DurableObject<Env> {
     }
 
     if (config.DEMO_MODE) {
-      this.pipeline = new Pipeline(this.store, demoExtractor, demoVerifier, config);
+      this.pipeline = new Pipeline(this.store, demoExtractor, demoVerifier, config, { brief: demoBriefer });
     } else {
       const client = createOpenAI(config);
-      this.pipeline = new Pipeline(this.store, createExtractor(client, config), createVerifier(client, config, dados), config);
+      this.pipeline = new Pipeline(this.store, createExtractor(client, config), createVerifier(client, config, dados), config, {
+        brief: createBriefer(client, config, dados),
+      });
     }
 
     this.api = createApi(this.store, this.pipeline, {

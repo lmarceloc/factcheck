@@ -5,7 +5,7 @@ import { PriorityQueue } from "./queue.js";
 import { Segmenter, type Chunk } from "./segmenter.js";
 import { AUTO_SPEAKER, type Claim, type Segment } from "./shared/types.js";
 import type { Store } from "./store.js";
-import type { Verifier } from "./verifier.js";
+import type { Briefer, Verifier } from "./verifier.js";
 
 const CONTEXT_SEGMENTS = 12;
 const KNOWN_CLAIMS = 40;
@@ -17,16 +17,19 @@ export class Pipeline {
   readonly segmenter: Segmenter;
   readonly checks: PriorityQueue;
   private readonly extractions = new PriorityQueue(2);
+  /** Pesquisa de contexto das perguntas (sem ela, perguntas são ignoradas). */
+  private readonly brief?: Briefer;
 
   constructor(
     private readonly store: Store,
     private readonly extract: Extractor,
     private readonly verify: Verifier,
     config: Pick<AppConfig, "MAX_CONCURRENT_CHECKS">,
-    segmenterOpts?: ConstructorParameters<typeof Segmenter>[1],
+    opts: { segmenter?: ConstructorParameters<typeof Segmenter>[1]; brief?: Briefer } = {},
   ) {
+    this.brief = opts.brief;
     this.checks = new PriorityQueue(config.MAX_CONCURRENT_CHECKS);
-    this.segmenter = new Segmenter((chunk) => this.extractions.add("alta", () => this.handleChunk(chunk)), segmenterOpts);
+    this.segmenter = new Segmenter((chunk) => this.extractions.add("alta", () => this.handleChunk(chunk)), opts.segmenter);
     for (const claim of store.claims.values()) {
       if (claim.status === "na_fila") this.enqueue(claim);
     }
@@ -68,6 +71,7 @@ export class Pipeline {
     const claim = this.store.updateClaim(id, {
       status: "na_fila",
       resultado: undefined,
+      contexto: undefined,
       erro: undefined,
       repeteDe: undefined,
       editado: false,
@@ -91,7 +95,26 @@ export class Pipeline {
       return;
     }
 
-    for (const item of extracted) {
+    // Perguntas feitas no debate: pesquisa o assunto antes da resposta chegar.
+    if (this.brief) {
+      for (const q of extracted.perguntas) {
+        this.enqueue(
+          this.store.addClaim({
+            tipo: "pergunta",
+            speakerId: chunk.speakerId === AUTO_SPEAKER ? (q.quem_pergunta ?? AUTO_SPEAKER) : chunk.speakerId,
+            segmentIds: chunk.segmentIds,
+            trecho: q.trecho,
+            afirmacao: q.pergunta,
+            categoria: "outro",
+            tema: q.tema,
+            alvo: q.para_quem,
+            prioridade: "alta",
+          }),
+        );
+      }
+    }
+
+    for (const item of extracted.afirmacoes) {
       const original = item.repete_id ? this.store.claims.get(item.repete_id) : undefined;
       const base = {
         // Na transmissão (orador "auto") vale quem o modelo identificou pelo contexto.
@@ -130,10 +153,17 @@ export class Pipeline {
     if (!claim || claim.status !== "na_fila") return;
     this.store.updateClaim(id, { status: "verificando", progresso: [] });
 
+    const onProgress = (progresso: string[]) => this.store.updateClaim(id, { progresso });
     try {
-      const resultado = await this.verify(claim, this.contextFor(claim), (progresso) =>
-        this.store.updateClaim(id, { progresso }),
-      );
+      if (claim.tipo === "pergunta") {
+        if (!this.brief) throw new Error("Pesquisa de perguntas indisponível.");
+        const contexto = await this.brief(claim, this.contextFor(claim), onProgress);
+        if (this.store.claims.get(id)?.status !== "verificando") return;
+        // Contexto é material interno da redação: fica no painel, não vai ao telão.
+        this.store.updateClaim(id, { contexto, status: "rascunho" });
+        return;
+      }
+      const resultado = await this.verify(claim, this.contextFor(claim), onProgress);
       // O editor pode ter descartado enquanto a checagem rodava.
       if (this.store.claims.get(id)?.status !== "verificando") return;
       const publish = this.store.autoPublish;

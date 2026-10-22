@@ -99,8 +99,22 @@ export interface CheckResult {
   duracaoMs: number;
 }
 
+/** Contexto pesquisado para uma pergunta feita no debate, antes da resposta. */
+export interface ContextResult {
+  resumo: string;
+  dados: string;
+  /** O que o checador deve observar na resposta. */
+  pontos: string[];
+  fontes: Source[];
+  buscas: string[];
+  modelo: string;
+  duracaoMs: number;
+}
+
 export interface Claim {
   id: string;
+  /** afirmação (padrão) ou pergunta feita no debate. */
+  tipo?: "afirmacao" | "pergunta";
   speakerId: string;
   segmentIds: string[];
   trecho: string;
@@ -117,6 +131,8 @@ export interface Claim {
   /** Buscas feitas até agora (atualizado enquanto verifica). */
   progresso: string[];
   resultado?: CheckResult;
+  /** Só para perguntas: dados para acompanhar a resposta. */
+  contexto?: ContextResult;
   repeteDe?: string;
   editado?: boolean;
   erro?: string;

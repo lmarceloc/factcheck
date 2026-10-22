@@ -4,14 +4,14 @@ import path from "node:path";
 import { createApp } from "./app.js";
 import { criarClienteDados } from "./data/cliente.js";
 import { createSttSession } from "./stt.js";
-import { demoExtractor, demoVerifier } from "./demo.js";
+import { demoBriefer, demoExtractor, demoVerifier } from "./demo.js";
 import { loadConfig } from "./config.js";
 import { createExtractor } from "./extractor.js";
 import { createOpenAI } from "./llm.js";
 import { Pipeline } from "./pipeline.js";
 import { Store } from "./store.js";
 import { FilePersistence } from "./store-file.js";
-import { createVerifier } from "./verifier.js";
+import { createBriefer, createVerifier } from "./verifier.js";
 
 // Lê o .env se existir; variáveis já definidas no ambiente têm prioridade.
 try {
@@ -29,10 +29,12 @@ const store = new Store(config.debate, {
   persistence: new FilePersistence(path.join(config.DATA_DIR, config.DEMO_MODE ? "state-demo.json" : "state.json")),
 });
 const pipeline = config.DEMO_MODE
-  ? new Pipeline(store, demoExtractor, demoVerifier, config)
+  ? new Pipeline(store, demoExtractor, demoVerifier, config, { brief: demoBriefer })
   : (() => {
       const client = createOpenAI(config);
-      return new Pipeline(store, createExtractor(client, config), createVerifier(client, config, dados), config);
+      return new Pipeline(store, createExtractor(client, config), createVerifier(client, config, dados), config, {
+        brief: createBriefer(client, config, dados),
+      });
     })();
 const app = createApp(store, pipeline, {
   operatorToken: config.OPERATOR_TOKEN,

@@ -30,6 +30,8 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const r = claim.resultado;
+  const isQ = claim.tipo === "pergunta";
+  const ctx = claim.contexto;
   const color = r ? VERDICT_STYLE[r.veredito].color : "rgba(148,163,184,.5)";
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -48,7 +50,7 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
     <motion.article
       ref={ref}
       layout
-      className={`claim claim--${claim.status}`}
+      className={`claim claim--${claim.status}${isQ ? " claim--pergunta-card" : ""}`}
       style={{ "--c": speaker?.cor ?? "#94a3b8", "--v": color } as CSSProperties}
       initial={{ opacity: 0, y: -24, scale: 0.96 }}
       animate={{ opacity: claim.status === "descartada" ? 0.45 : 1, y: 0, scale: 1 }}
@@ -75,10 +77,14 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
           ) : (
             (speaker?.nome ?? claim.speakerId)
           )}
-          {target && <span className="claim__target">sobre {target.nome}</span>}
+          {target && <span className="claim__target">{isQ ? "pergunta para" : "sobre"} {target.nome}</span>}
         </span>
         <span className="claim__meta">
-          <span className={`chip chip--${claim.prioridade}`}>{CATEGORY_LABELS[claim.categoria]}</span>
+          {isQ ? (
+            <span className="chip chip--pergunta">Pergunta</span>
+          ) : (
+            <span className={`chip chip--${claim.prioridade}`}>{CATEGORY_LABELS[claim.categoria]}</span>
+          )}
           <StatusPill claim={claim} />
         </span>
       </motion.div>
@@ -124,6 +130,43 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
                 <li className="muted">analisando a afirmação…</li>
               )}
             </ul>
+          </motion.div>
+        )}
+
+        {isQ && ctx && (
+          <motion.div
+            key="context"
+            className="claim__context"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={softSpring}
+          >
+            <span className="claim__context-label">Contexto para acompanhar a resposta</span>
+            <p className="claim__summary">{ctx.resumo}</p>
+            <p className="claim__context-data">{ctx.dados}</p>
+            {ctx.pontos.length > 0 && (
+              <ul className="claim__points">
+                {ctx.pontos.map((pt, i) => (
+                  <motion.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }}>
+                    {pt}
+                  </motion.li>
+                ))}
+              </ul>
+            )}
+            {ctx.fontes.length > 0 && (
+              <ul className="sources">
+                {ctx.fontes.map((f) => (
+                  <li key={f.url} className={f.confirmada ? "" : "unconfirmed"}>
+                    <a href={f.url} target="_blank" rel="noreferrer">
+                      {f.titulo}
+                    </a>
+                    <span>{hostname(f.url)}</span>
+                    {!f.confirmada && <em title="Esta URL não apareceu nos resultados da busca">não confirmada</em>}
+                  </li>
+                ))}
+              </ul>
+            )}
           </motion.div>
         )}
 
@@ -186,7 +229,7 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
       {err && <p className="claim__error">{err}</p>}
 
       <motion.div layout="position" className="claim__actions">
-        {claim.status === "rascunho" && (
+        {claim.status === "rascunho" && !isQ && (
           <motion.button
             className="btn btn--publish"
             disabled={busy}
@@ -208,7 +251,7 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
         )}
         {(claim.status === "erro" || claim.status === "rascunho" || claim.status === "descartada") && (
           <button className="btn btn--ghost" disabled={busy} onClick={() => act(() => api.recheck(claim.id))}>
-            Checar de novo
+            {isQ ? "Pesquisar de novo" : "Checar de novo"}
           </button>
         )}
         {claim.status !== "descartada" && (
@@ -222,6 +265,12 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
 });
 
 function StatusPill({ claim }: { claim: Claim }) {
+  const label =
+    claim.tipo === "pergunta" && claim.status === "rascunho"
+      ? "Contexto pronto"
+      : claim.tipo === "pergunta" && claim.status === "verificando"
+        ? "Pesquisando"
+        : STATUS_LABEL[claim.status];
   return (
     <motion.span key={claim.status} className={`status status--${claim.status}`} initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
       {claim.status === "verificando" && (
@@ -230,7 +279,7 @@ function StatusPill({ claim }: { claim: Claim }) {
       {claim.status === "publicada" && (
         <motion.i className="live" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.4, repeat: Infinity }} />
       )}
-      {STATUS_LABEL[claim.status]}
+      {label}
     </motion.span>
   );
 }
