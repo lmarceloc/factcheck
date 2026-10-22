@@ -28,6 +28,7 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [trocandoOrador, setTrocandoOrador] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const r = claim.resultado;
   const isQ = claim.tipo === "pergunta";
@@ -60,14 +61,20 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
       <motion.div layout="position" className="claim__head">
         <span className="claim__who">
           <span className="dot" />
-          {claim.speakerId === AUTO_SPEAKER ? (
+          {claim.speakerId === AUTO_SPEAKER || trocandoOrador ? (
             <select
               className="claim__who-pick"
-              value=""
+              value={claim.speakerId === AUTO_SPEAKER ? "" : claim.speakerId}
               aria-label="Quem disse"
-              onChange={(e) => e.target.value && act(() => api.edit(claim.id, { speakerId: e.target.value }))}
+              autoFocus={trocandoOrador}
+              onBlur={() => setTrocandoOrador(false)}
+              onChange={(e) => {
+                const id = e.target.value;
+                setTrocandoOrador(false);
+                if (id && id !== claim.speakerId) act(() => api.edit(claim.id, { speakerId: id }));
+              }}
             >
-              <option value="">Quem disse? (não identificado)</option>
+              {claim.speakerId === AUTO_SPEAKER && <option value="">Quem disse? (não identificado)</option>}
               {candidates.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.nome}
@@ -75,7 +82,12 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
               ))}
             </select>
           ) : (
-            (speaker?.nome ?? claim.speakerId)
+            <button className="claim__who-btn" title="Trocar quem disse" onClick={() => setTrocandoOrador(true)}>
+              {speaker?.nome ?? claim.speakerId}
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+              </svg>
+            </button>
           )}
           {target && <span className="claim__target">{isQ ? "pergunta para" : "sobre"} {target.nome}</span>}
         </span>
@@ -230,14 +242,14 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
       {err && <p className="claim__error">{err}</p>}
 
       <motion.div layout="position" className="claim__actions">
-        {claim.status === "rascunho" && !isQ && (
+        {claim.status === "rascunho" && !isQ && claim.speakerId !== AUTO_SPEAKER && (
           <motion.button
             className="btn btn--publish"
             disabled={busy}
             onClick={() => act(() => api.publish(claim.id))}
             whileTap={{ scale: 0.95 }}
           >
-            Publicar no telão
+            Publicar
           </motion.button>
         )}
         {claim.status === "publicada" && (

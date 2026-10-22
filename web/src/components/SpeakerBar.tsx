@@ -1,6 +1,6 @@
 import { LayoutGroup, motion } from "motion/react";
 import type { CSSProperties } from "react";
-import type { SpeakerInfo } from "../../../src/shared/types";
+import { AUTO_SPEAKER, type SpeakerInfo } from "../../../src/shared/types";
 import { spring } from "../theme";
 import { Avatar } from "./Avatar";
 
@@ -8,15 +8,22 @@ interface Props {
   speakers: SpeakerInfo[];
   current: string | null;
   onSelect: (id: string | null) => void;
+  /** Modo transmissão: primeiro botão é "Automático" (tecla 0), e é para ele que se volta ao desmarcar. */
+  auto?: boolean;
 }
 
+const AUTOMATICO: SpeakerInfo = { id: AUTO_SPEAKER, nome: "Automático", partido: "a IA identifica", cor: "#94a3b8" };
+
 /** Quem está com a palavra. A moldura desliza entre os oradores (atalhos 1, 2, 3…). */
-export function SpeakerBar({ speakers, current, onSelect }: Props) {
+export function SpeakerBar({ speakers, current, onSelect, auto }: Props) {
+  const lista = auto ? [AUTOMATICO, ...speakers] : speakers;
+  const vazio = auto ? AUTO_SPEAKER : null;
   return (
     <LayoutGroup id="speakers">
       <div className="speaker-bar" role="radiogroup" aria-label="Quem está falando">
-        {speakers.map((s, i) => {
-          const active = s.id === current;
+        {lista.map((s, idx) => {
+          const i = auto ? idx - 1 : idx;
+          const active = s.id === current || (auto && s.id === AUTO_SPEAKER && !current);
           return (
             <motion.button
               key={s.id}
@@ -24,7 +31,7 @@ export function SpeakerBar({ speakers, current, onSelect }: Props) {
               aria-checked={active}
               className={`speaker ${active ? "speaker--active" : ""}`}
               style={{ "--c": s.cor } as CSSProperties}
-              onClick={() => onSelect(active ? null : s.id)}
+              onClick={() => onSelect(active ? vazio : s.id)}
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.97 }}
             >
@@ -37,7 +44,11 @@ export function SpeakerBar({ speakers, current, onSelect }: Props) {
                   />
                 </motion.span>
               )}
-              <Avatar speaker={s} className="speaker__avatar" />
+              {s.id === AUTO_SPEAKER ? (
+                <span className="speaker__avatar">IA</span>
+              ) : (
+                <Avatar speaker={s} className="speaker__avatar" />
+              )}
               <span className="speaker__text">
                 <strong>{s.nome}</strong>
                 <small>{s.partido ?? (active ? "com a palavra" : " ")}</small>

@@ -114,7 +114,7 @@ export function Painel() {
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
       if ((e.key === "m" || e.key === "M") && modo === "manual") return toggleMic();
-      if (e.key === "0") return void selectSpeaker(null);
+      if (e.key === "0") return void selectSpeaker(modo === "transmissao" ? AUTO_SPEAKER : null);
       const n = Number(e.key);
       if (n >= 1 && n <= speakers.length) selectSpeaker(speakers[n - 1].id);
     };
@@ -185,6 +185,16 @@ export function Painel() {
           <span className={`conn ${connected ? "conn--on" : ""}`} title={connected ? "Conectado" : "Reconectando…"} />
         </div>
       </header>
+
+      {modo === "transmissao" && (
+        <section className="stage stage--tx">
+          <SpeakerBar speakers={speakers} current={current} onSelect={selectSpeaker} auto />
+          <p className="stage__hint">
+            Quem está falando? Deixe em <strong>Automático</strong> e a IA identifica; se souber, marque (teclas 1, 2, 3… e 0
+            para voltar ao automático).
+          </p>
+        </section>
+      )}
 
       {modo === "manual" && (
       <section className="stage">
