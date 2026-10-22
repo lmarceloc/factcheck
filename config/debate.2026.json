@@ -40,5 +40,10 @@
     "ipea.gov.br",
     "lupa.news",
     "aosfatos.org"
-  ]
+  ],
+  "marca": {
+    "nome": "Byte Fact Check",
+    "rodape": "agência byte",
+    "url": ""
+  }
 }

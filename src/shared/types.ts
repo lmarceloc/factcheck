@@ -22,6 +22,8 @@ export interface DebateInfo {
   emissora?: string;
   candidatos: SpeakerInfo[];
   outros_falantes: SpeakerInfo[];
+  /** Marca mostrada na tela do público (topo e rodapé). */
+  marca: { nome: string; rodape: string; url: string };
 }
 
 export const VERDICTS = [

@@ -21,6 +21,13 @@ export const DebateConfigSchema = z.object({
   outros_falantes: z.array(SpeakerSchema).default([]),
   contexto: z.string().default(""),
   fontes_preferidas: z.array(z.string()).default([]),
+  marca: z
+    .object({
+      nome: z.string().default("Byte Fact Check"),
+      rodape: z.string().default("agência byte"),
+      url: z.string().default(""),
+    })
+    .default({ nome: "Byte Fact Check", rodape: "agência byte", url: "" }),
 });
 
 export type Speaker = z.infer<typeof SpeakerSchema>;

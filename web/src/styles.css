@@ -2269,3 +2269,28 @@ a.aovivo {
   color: #93c5fd;
   text-decoration: none;
 }
+
+/* ---------- rodapé da marca ---------- */
+
+.assistir__rodape {
+  margin-top: 32px;
+  padding: 22px 0 8px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: center;
+}
+.assistir__rodape a,
+.assistir__rodape span {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.assistir__rodape a:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}

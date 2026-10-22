@@ -101,6 +101,8 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
 
 
   const { settings, debate } = data;
+  document.title = arquivoId ? `${debate.titulo} · ${debate.marca.nome}` : debate.marca.nome;
+
   const irPara = (t: number) => {
     if (!settings.youtube) return;
     if (yt.controlavel()) {
@@ -116,7 +118,7 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
       {settings.demo && <div className="demo-watermark">Simulação · não é checagem real</div>}
 
       <header className="assistir__top">
-        <Logo />
+        <Logo nome={debate.marca.nome} />
         <div className="assistir__titulo">
           <h1>{debate.titulo}</h1>
           <span>
@@ -183,6 +185,16 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
           </p>
         </section>
       </main>
+
+      <footer className="assistir__rodape">
+        {debate.marca.url ? (
+          <a href={debate.marca.url} target="_blank" rel="noopener">
+            {debate.marca.rodape}
+          </a>
+        ) : (
+          <span>{debate.marca.rodape}</span>
+        )}
+      </footer>
     </div>
   );
 }

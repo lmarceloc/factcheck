@@ -20,7 +20,11 @@
     }
   ],
   "outros_falantes": [
-    { "id": "mediador", "nome": "Mediação", "cor": "#94a3b8" }
+    {
+      "id": "mediador",
+      "nome": "Mediação",
+      "cor": "#94a3b8"
+    }
   ],
   "contexto": "Contexto para os checadores: temas esperados, cargos que cada candidato já ocupou, dados oficiais recentes, polêmicas conhecidas. Tudo aqui entra no prompt do modelo.",
   "fontes_preferidas": [
@@ -37,5 +41,10 @@
     "inep.gov.br",
     "lupa.news",
     "aosfatos.org"
-  ]
+  ],
+  "marca": {
+    "nome": "Byte Fact Check",
+    "rodape": "agência byte",
+    "url": ""
+  }
 }
