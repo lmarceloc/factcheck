@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import type { Registro } from "./shared/dados.js";
 
 const SpeakerSchema = z.object({
   id: z.string().min(1),
@@ -46,12 +47,18 @@ const EnvSchema = z.object({
   AUTO_PUBLISH: bool,
   /** Extração e checagem falsas, sem API: só para ensaio. */
   DEMO_MODE: bool,
+  /** Camada de dados oficiais: auto = gateway se DATA_GATEWAY_URL existir, senão direto. */
+  DATA_LAYER: z.enum(["auto", "gateway", "direto", "desligado"]).default("auto"),
+  DATA_GATEWAY_URL: z.string().url().optional(),
+  DATA_GATEWAY_TOKEN: z.string().optional(),
+  PORTAL_TRANSPARENCIA_API_KEY: z.string().optional(),
+  FONTES_CONFIG: z.string().default("config/fontes.json"),
   /** Se definido, o painel do checador e as ações exigem este token; o telão continua aberto. */
   OPERATOR_TOKEN: z.string().optional(),
   NODE_ENV: z.string().default("development"),
 });
 
-export type AppConfig = z.infer<typeof EnvSchema> & { debate: DebateConfig };
+export type AppConfig = z.infer<typeof EnvSchema> & { debate: DebateConfig; registro: Registro };
 
 export function loadDebateConfig(file: string): DebateConfig {
   const candidates = [file, "config/debate.example.json"];
@@ -70,7 +77,8 @@ export function loadDebateConfig(file: string): DebateConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = EnvSchema.parse(env);
-  return { ...parsed, debate: loadDebateConfig(parsed.DEBATE_CONFIG) };
+  const registro = JSON.parse(fs.readFileSync(path.resolve(parsed.FONTES_CONFIG), "utf8")) as Registro;
+  return { ...parsed, debate: loadDebateConfig(parsed.DEBATE_CONFIG), registro };
 }
 
 export function allSpeakers(debate: DebateConfig): Speaker[] {

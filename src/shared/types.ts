@@ -1,5 +1,7 @@
 // Tipos compartilhados entre o servidor e o site (sem dependências de Node).
 
+import type { Tema } from "./dados.js";
+
 export interface SpeakerInfo {
   id: string;
   nome: string;
@@ -99,6 +101,8 @@ export interface Claim {
   trecho: string;
   afirmacao: string;
   categoria: Category;
+  /** Assunto, usado pelo roteador para escolher as fontes oficiais. */
+  tema?: Tema;
   alvo: string | null;
   prioridade: Priority;
   status: ClaimStatus;

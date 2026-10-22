@@ -91,6 +91,7 @@ export class Pipeline {
         trecho: item.trecho,
         afirmacao: item.afirmacao,
         categoria: item.categoria,
+        tema: item.tema,
         alvo: item.alvo,
         prioridade: item.prioridade,
       };

@@ -69,6 +69,15 @@ export class SourceCollector {
     this.seen.set(key, entry);
   }
 
+  /** Fonte oficial consultada por API: entra como confirmada e vale como citação. */
+  addOficial(url: string, titulo: string) {
+    this.add(url, titulo, "consulta direta à API oficial");
+  }
+
+  addConsulta(rotulo: string) {
+    this.queries.push(rotulo);
+  }
+
   has(url: string) {
     return this.seen.has(normalizeUrl(url));
   }
