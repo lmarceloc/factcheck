@@ -18,8 +18,8 @@
     "tse:ingest": "tsx scripts/tse-ingest.ts",
     "fontes:sql": "tsx scripts/fontes-sql.ts",
     "cf:prepare": "tsx scripts/cf-prepare.ts && vite build web",
-    "cf:dev": "npm run cf:prepare && cd worker-app && wrangler dev",
-    "cf:deploy": "npm run cf:prepare && cd worker-app && wrangler deploy",
+    "cf:dev": "npm run cf:prepare && cd worker-app && npx wrangler dev",
+    "cf:deploy": "npm run cf:prepare && cd worker-app && npx wrangler deploy",
     "tse:fotos": "tsx scripts/tse-fotos.ts"
   },
   "dependencies": {
@@ -40,6 +40,7 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.3"
   }
 }

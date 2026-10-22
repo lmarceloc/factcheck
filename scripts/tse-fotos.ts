@@ -5,6 +5,11 @@
 //   npm run tse:fotos -- --eleicao 6258 --cargo 1
 //   npm run tse:fotos -- --eleicao 6258 --cargo 1 --mapa "a=FLAVIO,b=LULA"
 //
+// Se o TSE mudar os caminhos, informe os endereços vistos no navegador
+// (DevTools → Rede, na página de resultados):
+//   --url-candidatos <URL do JSON com a lista de candidatos>
+//   --url-foto <URL de uma das fotos>   (o script troca o código do candidato)
+//
 // O site do TSE (resultados.tse.jus.br) é alimentado por arquivos JSON públicos:
 // a lista de candidatos fica em dados-simplificados e as fotos em fotos/<uf>/<sqcand>.jpeg.
 import fs from "node:fs";
@@ -32,7 +37,12 @@ const mapa = new Map(
 
 async function json(url: string): Promise<unknown> {
   const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`${res.status} em ${url}`);
+  if (!res.ok) {
+    throw new Error(
+      `${res.status} em ${url}\nO TSE pode ter mudado o caminho. Abra a página de resultados no navegador, ` +
+        `DevTools (F12) → Rede, filtre por "json" e "jpeg", e rode de novo com --url-candidatos e --url-foto.`,
+    );
+  }
   return res.json();
 }
 
@@ -63,10 +73,10 @@ async function descobrirCiclo(): Promise<string> {
   return "ele2026";
 }
 
-const ciclo = await descobrirCiclo();
+const ciclo = flag("url-candidatos") ? "" : await descobrirCiclo();
 const e6 = eleicao.padStart(6, "0");
 const c4 = String(cargo).padStart(4, "0");
-const urlResultados = `${BASE}/${ciclo}/${eleicao}/dados-simplificados/${uf}/${uf}-c${c4}-e${e6}-r.json`;
+const urlResultados = flag("url-candidatos") ?? `${BASE}/${ciclo}/${eleicao}/dados-simplificados/${uf}/${uf}-c${c4}-e${e6}-r.json`;
 console.log(`Candidatos: ${urlResultados}`);
 
 const candidatos: { sqcand: string; nome: string; numero?: string }[] = [];
@@ -90,7 +100,11 @@ for (const cand of debate.candidatos) {
     console.warn(`✗ ${cand.nome}: não achei no TSE. Use --mapa "${cand.id}=NOME NA URNA".`);
     continue;
   }
-  const urlFoto = `${BASE}/${ciclo}/${eleicao}/fotos/${uf}/${achado.sqcand}.jpeg`;
+  // Com --url-foto, troca o código do candidato da URL de exemplo (o número mais longo do nome do arquivo).
+  const exemplo = flag("url-foto");
+  const urlFoto = exemplo
+    ? exemplo.replace(/\d{6,}(?=\.[a-z]+(\?|$))/i, achado.sqcand)
+    : `${BASE}/${ciclo}/${eleicao}/fotos/${uf}/${achado.sqcand}.jpeg`;
   const res = await fetch(urlFoto);
   if (!res.ok) {
     console.warn(`✗ ${cand.nome}: foto indisponível (${res.status}) em ${urlFoto}`);
