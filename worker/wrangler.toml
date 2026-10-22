@@ -4,6 +4,7 @@
 # 3) npx wrangler secret put GATEWAY_TOKEN   (e PORTAL_TRANSPARENCIA_API_KEY)
 # 4) npm run deploy
 name = "factcheck-dados"
+account_id = "9168f6acd4582cc306bf7b562bb6f01c"
 main = "src/index.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
