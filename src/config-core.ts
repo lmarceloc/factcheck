@@ -25,9 +25,9 @@ export const DebateConfigSchema = z.object({
     .object({
       nome: z.string().default("Byte Fact Check"),
       rodape: z.string().default("agência byte"),
-      url: z.string().default(""),
+      url: z.string().default("https://agenciabyte.com"),
     })
-    .default({ nome: "Byte Fact Check", rodape: "agência byte", url: "" }),
+    .default({ nome: "Byte Fact Check", rodape: "agência byte", url: "https://agenciabyte.com" }),
 });
 
 export type Speaker = z.infer<typeof SpeakerSchema>;
