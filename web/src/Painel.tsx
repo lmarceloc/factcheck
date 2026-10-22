@@ -61,6 +61,15 @@ export function Painel() {
       setEncerrando(false);
     }
   };
+  const limpar = async () => {
+    if (!window.confirm("Apagar todas as falas e checagens (inclusive as publicadas) sem arquivar? A transmissão continua.")) return;
+    try {
+      await api.limpar();
+      notify("Checagens apagadas. A transmissão continua.");
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  };
   const claimList = useMemo(() => [...claims.values()], [claims]);
 
   const notify = useCallback((msg: string) => {
@@ -213,6 +222,9 @@ export function Painel() {
           <a className="btn btn--ghost" href="/api/report.md" target="_blank" rel="noreferrer">
             Relatório
           </a>
+          <button className="btn btn--ghost" onClick={limpar} title="Apaga falas e checagens sem arquivar; a transmissão continua">
+            Limpar checagens
+          </button>
           <button className="btn btn--ghost btn--danger" onClick={() => setConfirmarEncerrar(true)} disabled={speech.listening || assembly.listening}>
             Encerrar debate
           </button>

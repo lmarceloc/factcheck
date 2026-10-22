@@ -11,6 +11,7 @@ export interface SeenSource {
 
 /** Normaliza a URL para comparar a fonte citada pelo modelo com as que a busca devolveu. */
 export function normalizeUrl(raw: string): string {
+  if (typeof raw !== "string") return "";
   try {
     const u = new URL(raw.trim());
     u.hash = "";
@@ -41,7 +42,8 @@ export class SourceCollector {
         if (action.type === "search") {
           const queries = action.queries?.length ? action.queries : action.query ? [action.query] : [];
           for (const q of queries) if (!this.queries.includes(q)) this.queries.push(q);
-          for (const src of action.sources ?? []) this.add(src.url, src.url);
+          // Fontes do tipo "api" (dados internos da busca) não têm endereço.
+          for (const src of action.sources ?? []) if ("url" in src && src.url) this.add(src.url, src.url);
         } else if (action.type === "open_page" && action.url) {
           this.queries.push(`abrindo ${action.url}`);
           this.add(action.url, action.url);
@@ -62,6 +64,7 @@ export class SourceCollector {
   }
 
   private add(url: string, titulo: string, trecho?: string) {
+    if (!url) return;
     const key = normalizeUrl(url);
     const entry = this.seen.get(key) ?? { url, titulo, trechos: [] };
     if (entry.titulo === entry.url && titulo !== url) entry.titulo = titulo;
@@ -94,6 +97,7 @@ export class SourceCollector {
     const out: Source[] = [];
     const used = new Set<string>();
     for (const f of fontes) {
+      if (!f.url) continue;
       const key = normalizeUrl(f.url);
       if (used.has(key)) continue;
       used.add(key);

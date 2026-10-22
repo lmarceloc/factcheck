@@ -226,6 +226,12 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
       return ok(store.settings());
     }
 
+    if (route === "POST /api/limpar") {
+      pipeline.reset();
+      store.limpar();
+      return ok({ ok: true });
+    }
+
     if (route === "POST /api/encerrar") {
       pipeline.reset();
       return ok(store.encerrar());

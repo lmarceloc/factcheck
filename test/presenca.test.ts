@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { Presenca, PRESENCA_VALIDADE_MS } from "../src/presenca";
-import { Store } from "../src/store";
-import type { DebateInfo } from "../src/shared/types";
+import { Presenca, PRESENCA_VALIDADE_MS } from "../src/presenca.js";
+import { Store } from "../src/store.js";
+import type { DebateInfo } from "../src/shared/types.js";
 
 const debate = {
   titulo: "Teste",

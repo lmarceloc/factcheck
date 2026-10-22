@@ -220,6 +220,18 @@ export class Store extends EventEmitter {
     return resumo;
   }
 
+  /**
+   * Apaga falas e checagens sem arquivar (ex.: o que entrou antes do debate
+   * começar). Mantém o vídeo, o "ao vivo", o orador e a audiência.
+   */
+  limpar() {
+    this.persistence?.clear();
+    this.segments = [];
+    this.claims.clear();
+    this.saveMeta();
+    this.emitEvent({ type: "snapshot", state: this.snapshot() });
+  }
+
   /** Checagem publicada pelo id: procura no debate atual e depois nos arquivados (link permanente). */
   findPublished(id: string): ChecagemPublica | null {
     const atual = this.claims.get(id);
