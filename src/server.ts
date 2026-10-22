@@ -11,6 +11,13 @@ import { Pipeline } from "./pipeline.js";
 import { Store } from "./store.js";
 import { createVerifier } from "./verifier.js";
 
+// Lê o .env se existir; variáveis já definidas no ambiente têm prioridade.
+try {
+  process.loadEnvFile(".env");
+} catch {
+  /* sem .env: segue só com o ambiente */
+}
+
 const config = loadConfig();
 const dados = config.DEMO_MODE ? null : criarClienteDados(config);
 
