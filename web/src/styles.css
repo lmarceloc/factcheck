@@ -2144,3 +2144,128 @@ select:focus-visible {
   font-size: 12.5px;
   color: var(--muted);
 }
+
+/* ---------- player do YouTube controlável ---------- */
+
+.player-host,
+.tx__video {
+  position: absolute;
+  inset: 0;
+}
+.player-host iframe,
+.tx__video iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ---------- modal ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(3, 5, 10, 0.7);
+  backdrop-filter: blur(6px);
+}
+.modal__box {
+  width: min(480px, 100%);
+  padding: 22px 24px;
+  border-radius: 18px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.modal__box h2 {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: 20px;
+}
+.modal__box p {
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.5;
+  font-size: 14.5px;
+}
+
+/* ---------- ver no vídeo e debates anteriores ---------- */
+
+.pub__acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pub__video {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 77, 94, 0.45);
+  background: rgba(255, 77, 94, 0.12);
+  color: #ffc2c8;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.pub__video svg {
+  width: 12px;
+  height: 12px;
+}
+.pub__video:hover {
+  background: rgba(255, 77, 94, 0.22);
+}
+a.aovivo {
+  text-decoration: none;
+}
+.assistir__top > a:first-child {
+  text-decoration: none;
+}
+.arquivos {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.arquivo {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-decoration: none;
+}
+.arquivo img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+}
+.arquivo div {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.arquivo strong {
+  font-size: 15px;
+}
+.arquivo span {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.assistir__arquivos {
+  align-self: flex-start;
+  font-size: 13px;
+  color: #93c5fd;
+  text-decoration: none;
+}

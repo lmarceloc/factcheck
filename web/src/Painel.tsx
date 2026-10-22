@@ -47,6 +47,20 @@ export function Painel() {
     }
   };
   const [verTranscricao, setVerTranscricao] = useState(false);
+  const [confirmarEncerrar, setConfirmarEncerrar] = useState(false);
+  const [encerrando, setEncerrando] = useState(false);
+  const encerrar = async () => {
+    setEncerrando(true);
+    try {
+      const arq = await api.encerrar();
+      setConfirmarEncerrar(false);
+      notify(`Debate arquivado em /arquivo/${arq.id} (${arq.checagens} checagens). A tela foi zerada para o próximo.`);
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setEncerrando(false);
+    }
+  };
   const claimList = useMemo(() => [...claims.values()], [claims]);
 
   const notify = useCallback((msg: string) => {
@@ -55,9 +69,17 @@ export function Painel() {
   }, []);
 
   const lastInterim = useRef(0);
-  const onFinal = (text: string) => {
+  // Relógio do player do YouTube (modo transmissão): cada fala leva o minuto do vídeo.
+  const videoClock = useRef<(() => number | undefined) | null>(null);
+  const setVideoClock = useCallback((fn: () => number | undefined) => {
+    videoClock.current = fn;
+  }, []);
+  const onFinal = (text: string, startedAt?: number) => {
     if (!currentRef.current) return notify("Escolha quem está falando para a fala entrar na checagem.");
-    api.transcript(text).catch((e) => notify(e.message));
+    const agora = videoClock.current?.();
+    const videoTime =
+      agora !== undefined && startedAt !== undefined ? Math.max(0, agora - (performance.now() - startedAt) / 1000) : undefined;
+    api.transcript(text, true, undefined, videoTime).catch((e) => notify(e.message));
   };
   const onInterim = (text: string) => {
     const now = Date.now();
@@ -182,6 +204,9 @@ export function Painel() {
           <a className="btn btn--ghost" href="/api/report.md" target="_blank" rel="noreferrer">
             Relatório
           </a>
+          <button className="btn btn--ghost btn--danger" onClick={() => setConfirmarEncerrar(true)} disabled={speech.listening || assembly.listening}>
+            Encerrar debate
+          </button>
           <span className={`conn ${connected ? "conn--on" : ""}`} title={connected ? "Conectado" : "Reconectando…"} />
         </div>
       </header>
@@ -220,6 +245,7 @@ export function Painel() {
               <Transmissao
                 youtube={data.settings.youtube}
                 onLoad={(id) => api.transmissao({ youtube: id })}
+                onClock={setVideoClock}
                 available={assemblyOn}
                 listening={assembly.listening}
                 level={assembly.level}
@@ -257,6 +283,38 @@ export function Painel() {
           <ClaimFeed claims={claimList} speakers={byId} candidates={speakers} />
         </section>
       </main>
+
+      <AnimatePresence>
+        {confirmarEncerrar && (
+          <motion.div className="modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setConfirmarEncerrar(false)}>
+            <motion.div
+              className="modal__box"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="encerrar-titulo"
+              initial={{ scale: 0.92, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="encerrar-titulo">Encerrar o debate?</h2>
+              <p>
+                Tudo fica guardado num arquivo permanente, com página própria para o público ({claimList.filter((c) => c.status === "publicada").length}{" "}
+                checagens publicadas). Depois disso, a tela do público, o placar e a fila são zerados para o próximo debate.
+              </p>
+              <div className="claim__actions">
+                <button className="btn btn--publish" onClick={encerrar} disabled={encerrando}>
+                  {encerrando ? "Arquivando…" : "Encerrar e arquivar"}
+                </button>
+                <button className="btn btn--ghost" onClick={() => setConfirmarEncerrar(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {toast && (

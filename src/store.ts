@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
+import type { ArquivoResumo, Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
 
 export interface Meta {
   currentSpeaker: string | null;
@@ -17,6 +17,11 @@ export interface Persistence {
   saveMeta(meta: Meta): void;
   /** Grava o que estiver pendente (no desligamento). */
   flush?(): void;
+  /** Apaga o debate atual (depois de arquivado). */
+  clear(): void;
+  saveArchive(resumo: ArquivoResumo, estado: PublicState): void;
+  listArchives(): ArquivoResumo[];
+  getArchive(id: string): PublicState | null;
 }
 
 /** Estado do debate em memória, com eventos para o SSE e gravação em disco. */
@@ -88,8 +93,8 @@ export class Store extends EventEmitter {
     this.emitEvent({ type: "settings", settings: this.settings() });
   }
 
-  addSegment(speakerId: string, text: string, at = Date.now()): Segment {
-    const segment: Segment = { id: crypto.randomUUID(), speakerId, text, at };
+  addSegment(speakerId: string, text: string, at = Date.now(), videoTime?: number): Segment {
+    const segment: Segment = { id: crypto.randomUUID(), speakerId, text, at, ...(videoTime !== undefined ? { videoTime } : {}) };
     this.segments.push(segment);
     this.emitEvent({ type: "segment", segment });
     this.persistence?.saveSegment(segment);
@@ -113,6 +118,39 @@ export class Store extends EventEmitter {
     this.emitEvent({ type: "claim", claim });
     this.persistence?.saveClaim(claim);
     return claim;
+  }
+
+  /**
+   * Encerra o debate: guarda tudo num arquivo permanente e zera a sala para o
+   * próximo (falas, checagens, vídeo e placar).
+   */
+  encerrar(): ArquivoResumo {
+    const estado = this.snapshot();
+    const resumo: ArquivoResumo = {
+      id: `${this.debate.data}-${crypto.randomUUID().slice(0, 8)}`,
+      titulo: this.debate.titulo,
+      data: this.debate.data,
+      encerradoEm: Date.now(),
+      youtube: this.youtube,
+      checagens: estado.claims.filter((c) => c.status === "publicada" && !c.repeteDe).length,
+    };
+    this.persistence?.saveArchive(resumo, { ...estado, settings: { ...estado.settings, captura: false } });
+    this.persistence?.clear();
+    this.segments = [];
+    this.claims.clear();
+    this.currentSpeaker = null;
+    this.youtube = null;
+    this.captura = false;
+    this.emitEvent({ type: "snapshot", state: this.snapshot() });
+    return resumo;
+  }
+
+  listArchives(): ArquivoResumo[] {
+    return this.persistence?.listArchives() ?? [];
+  }
+
+  getArchive(id: string): PublicState | null {
+    return this.persistence?.getArchive(id) ?? null;
   }
 
   recentSegments(limit: number): Segment[] {

@@ -49,6 +49,13 @@ export class Segmenter {
     this.armTimer();
   }
 
+  /** Joga fora a fala acumulada sem enviar (debate encerrado). */
+  discard() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.buffer = [];
+  }
+
   /** Há fala acumulada esperando para ser enviada? */
   get pending(): boolean {
     return this.buffer.length > 0;

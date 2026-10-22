@@ -1,4 +1,4 @@
-import type { Claim, Verdict } from "../../src/shared/types";
+import type { ArquivoResumo, Claim, Verdict } from "../../src/shared/types";
 
 const TOKEN_KEY = "factcheck.token";
 
@@ -29,8 +29,9 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
 }
 
 export const api = {
-  transcript: (text: string, final = true, speakerId?: string) =>
-    request("POST", "/api/transcript", { text, final, speakerId }),
+  transcript: (text: string, final = true, speakerId?: string, videoTime?: number) =>
+    request("POST", "/api/transcript", { text, final, speakerId, videoTime }),
+  encerrar: () => request<ArquivoResumo>("POST", "/api/encerrar"),
   setSpeaker: (speakerId: string | null) => request("POST", "/api/speaker", { speakerId }),
   flush: () => request("POST", "/api/flush"),
   manualClaim: (speakerId: string, text: string) => request<Claim>("POST", "/api/claims", { speakerId, text }),

@@ -1,5 +1,7 @@
 import { AnimatePresence, motion, useTransform, type MotionValue } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useYouTube } from "../useYouTube";
+import { Player } from "./Player";
 
 /** Aceita links de vídeo, live, shorts, youtu.be e embed; devolve o id do vídeo. */
 export function youtubeId(url: string): string | null {
@@ -22,6 +24,8 @@ interface Props {
   /** Vídeo atual da transmissão (definido no servidor e mostrado a todos). */
   youtube: string | null;
   onLoad: (videoId: string) => Promise<unknown>;
+  /** Entrega ao painel o relógio do vídeo, para marcar o minuto de cada fala. */
+  onClock?: (tempoAtual: () => number | undefined) => void;
   available: boolean;
   listening: boolean;
   level: MotionValue<number>;
@@ -33,10 +37,12 @@ interface Props {
  * Modo transmissão: o player do YouTube fica na própria página; ao começar, o
  * Chrome compartilha o áudio desta aba com o AssemblyAI e as checagens vão saindo.
  */
-export function Transmissao({ youtube, onLoad, available, listening, level, onStart, onStop }: Props) {
+export function Transmissao({ youtube, onLoad, onClock, available, listening, level, onStart, onStop }: Props) {
   const [url, setUrl] = useState(() => (youtube ? `https://www.youtube.com/watch?v=${youtube}` : ""));
   const loaded = youtube;
   const [erro, setErro] = useState<string | null>(null);
+  const yt = useYouTube(loaded);
+  useEffect(() => onClock?.(yt.tempoAtual), [onClock, yt.tempoAtual]);
   const width = useTransform(level, (v) => `${Math.round(8 + v * 92)}%`);
 
   const carregar = () => {
@@ -71,16 +77,9 @@ export function Transmissao({ youtube, onLoad, available, listening, level, onSt
       <div className="tx__player">
         <AnimatePresence mode="wait">
           {loaded ? (
-            <motion.iframe
-              key={loaded}
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              src={`https://www.youtube-nocookie.com/embed/${loaded}?autoplay=1&rel=0&modestbranding=1`}
-              title="Transmissão do debate"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-            />
+            <motion.div key={loaded} className="tx__video" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+              <Player videoId={loaded} yt={yt} />
+            </motion.div>
           ) : (
             <motion.div key="vazio" className="tx__empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <svg viewBox="0 0 24 24" aria-hidden>

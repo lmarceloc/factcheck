@@ -1,5 +1,5 @@
 import type { Meta, Persisted, Persistence } from "./store.js";
-import type { Claim, Segment } from "./shared/types.js";
+import type { ArquivoResumo, Claim, PublicState, Segment } from "./shared/types.js";
 
 /** O mínimo da API SQL do Durable Object (ctx.storage.sql) que usamos aqui. */
 export interface SqlLike {
@@ -12,6 +12,9 @@ export class SqlPersistence implements Persistence {
     sql.exec(`CREATE TABLE IF NOT EXISTS segments (id TEXT PRIMARY KEY, at INTEGER NOT NULL, json TEXT NOT NULL)`);
     sql.exec(`CREATE TABLE IF NOT EXISTS claims (id TEXT PRIMARY KEY, json TEXT NOT NULL)`);
     sql.exec(`CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)`);
+    sql.exec(
+      `CREATE TABLE IF NOT EXISTS arquivos (id TEXT PRIMARY KEY, encerrado_em INTEGER NOT NULL, resumo TEXT NOT NULL, estado TEXT NOT NULL)`,
+    );
   }
 
   load(): Persisted | null {
@@ -43,5 +46,33 @@ export class SqlPersistence implements Persistence {
 
   saveMeta(meta: Meta) {
     this.sql.exec(`INSERT OR REPLACE INTO meta (k, v) VALUES ('meta', ?)`, JSON.stringify(meta));
+  }
+
+  clear() {
+    this.sql.exec(`DELETE FROM segments`);
+    this.sql.exec(`DELETE FROM claims`);
+    this.sql.exec(`DELETE FROM meta`);
+  }
+
+  saveArchive(resumo: ArquivoResumo, estado: PublicState) {
+    this.sql.exec(
+      `INSERT OR REPLACE INTO arquivos (id, encerrado_em, resumo, estado) VALUES (?, ?, ?, ?)`,
+      resumo.id,
+      resumo.encerradoEm,
+      JSON.stringify(resumo),
+      JSON.stringify(estado),
+    );
+  }
+
+  listArchives(): ArquivoResumo[] {
+    return this.sql
+      .exec(`SELECT resumo FROM arquivos ORDER BY encerrado_em DESC`)
+      .toArray()
+      .map((r) => JSON.parse(r.resumo as string) as ArquivoResumo);
+  }
+
+  getArchive(id: string): PublicState | null {
+    const row = this.sql.exec(`SELECT estado FROM arquivos WHERE id = ?`, id).toArray()[0];
+    return row ? (JSON.parse(row.estado as string) as PublicState) : null;
   }
 }

@@ -67,7 +67,8 @@ async function openStream(source: AudioSource): Promise<MediaStream> {
  * Transcrição em tempo real pelo AssemblyAI (streaming v3). O servidor gera um
  * token temporário de uso único; o áudio vai do navegador direto para o AssemblyAI.
  */
-export function useAssembly(onFinal: (text: string) => void, onInterim: (text: string) => void) {
+/** startedAt: performance.now() de quando a fala começou a ser ouvida (para achar o minuto do vídeo). */
+export function useAssembly(onFinal: (text: string, startedAt: number) => void, onInterim: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const level = useMotionValue(0);
@@ -93,12 +94,15 @@ export function useAssembly(onFinal: (text: string) => void, onInterim: (text: s
     ws.current = socket;
 
     const emitted = new Set<number>();
+    // Quando cada turno começou: o primeiro resultado parcial chega logo no início da fala.
+    const inicio = new Map<number, number>();
     let pending: { order: number; text: string; timer: number } | null = null;
     const emit = (order: number, text: string) => {
       if (emitted.has(order) || !text.trim()) return;
       emitted.add(order);
       handlers.current.onInterim("");
-      handlers.current.onFinal(text);
+      handlers.current.onFinal(text, inicio.get(order) ?? performance.now());
+      inicio.delete(order);
     };
 
     socket.onmessage = (ev) => {
@@ -111,6 +115,7 @@ export function useAssembly(onFinal: (text: string) => void, onInterim: (text: s
       if (msg.type !== "Turn") return;
       const turn = msg as unknown as TurnMessage;
       if (!turn.end_of_turn) {
+        if (!inicio.has(turn.turn_order)) inicio.set(turn.turn_order, performance.now());
         handlers.current.onInterim(turn.transcript);
         return;
       }

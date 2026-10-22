@@ -10,6 +10,7 @@ export function usePublicState(intervalMs = 3000) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
+    if (intervalMs <= 0) return;
     let stopped = false;
     let timer = 0;
     const tick = async () => {

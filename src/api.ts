@@ -40,6 +40,8 @@ export function publicSnapshot(state: PublicState): PublicState {
 
 export function publicEvent(event: ServerEvent): ServerEvent | null {
   switch (event.type) {
+    case "snapshot":
+      return { type: "snapshot", state: publicSnapshot(event.state) };
     case "claim":
       return isPublic(event.claim) ? event : { type: "claim_hidden", id: event.claim.id };
     case "segment":
@@ -54,6 +56,8 @@ const TranscriptBody = z.object({
   speakerId: z.string().optional(),
   text: z.string(),
   final: z.boolean().default(true),
+  /** Segundo do vídeo do YouTube em que a fala começou. */
+  videoTime: z.number().nonnegative().optional(),
 });
 const SpeakerBody = z.object({ speakerId: z.string().nullable() });
 const ManualClaimBody = z.object({ speakerId: z.string(), text: z.string().min(3) });
@@ -104,6 +108,21 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
       return ok({ ok: true, fila: pipeline.checks.size, verificando: pipeline.checks.active });
     }
     if (route === "GET /api/public/state") return ok(publicSnapshot(store.snapshot()));
+    // Debates encerrados: lista e cada um completo (o público vê só o que foi publicado).
+    if (route === "GET /api/arquivos") return ok(store.listArchives());
+    const arq = path.match(/^\/api\/arquivos\/([\w-]+)$/);
+    if (arq && method === "GET") {
+      const estado = store.getArchive(arq[1]);
+      if (!estado) return fail(404, "Debate não encontrado.");
+      return ok(isOperator(req) ? estado : publicSnapshot(estado));
+    }
+    const arqMd = path.match(/^\/api\/arquivos\/([\w-]+)\/report\.md$/);
+    if (arqMd && method === "GET") {
+      const estado = store.getArchive(arqMd[1]);
+      if (!estado) return fail(404, "Debate não encontrado.");
+      return { status: 200, text: markdownReport(publicSnapshot(estado)), contentType: "text/markdown; charset=utf-8" };
+    }
+
     if (route === "GET /api/report.md") {
       return { status: 200, text: markdownReport(publicSnapshot(store.snapshot())), contentType: "text/markdown; charset=utf-8" };
     }
@@ -136,7 +155,7 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
         store.emitEvent({ type: "interim", speakerId, text: body.data.text });
         return ok({ ok: true });
       }
-      return ok({ ok: true, segment: pipeline.ingest(speakerId, body.data.text) });
+      return ok({ ok: true, segment: pipeline.ingest(speakerId, body.data.text, undefined, body.data.videoTime) });
     }
 
     if (route === "POST /api/speaker") {
@@ -171,6 +190,11 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
         if (!body.data.captura) pipeline.segmenter.flush();
       }
       return ok(store.settings());
+    }
+
+    if (route === "POST /api/encerrar") {
+      pipeline.reset();
+      return ok(store.encerrar());
     }
 
     if (route === "POST /api/settings") {

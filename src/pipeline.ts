@@ -17,6 +17,8 @@ export class Pipeline {
   readonly segmenter: Segmenter;
   readonly checks: PriorityQueue;
   private readonly extractions = new PriorityQueue(2);
+  /** Muda a cada debate encerrado: triagem que termina depois disso é descartada. */
+  private epoch = 0;
   /** Pesquisa de contexto das perguntas (sem ela, perguntas são ignoradas). */
   private readonly brief?: Briefer;
 
@@ -44,10 +46,10 @@ export class Pipeline {
   }
 
   /** Recebe um pedaço final de transcrição de quem está falando. */
-  ingest(speakerId: string, text: string, at?: number): Segment | null {
+  ingest(speakerId: string, text: string, at?: number, videoTime?: number): Segment | null {
     const clean = text.replace(/\s+/g, " ").trim();
     if (!clean) return null;
-    const segment = this.store.addSegment(speakerId, clean, at);
+    const segment = this.store.addSegment(speakerId, clean, at, videoTime);
     this.segmenter.push(segment);
     return segment;
   }
@@ -83,6 +85,7 @@ export class Pipeline {
   }
 
   async handleChunk(chunk: Chunk) {
+    const epoch = this.epoch;
     const firstIdx = this.store.segments.findIndex((s) => s.id === chunk.segmentIds[0]);
     const context = this.store.segments.slice(Math.max(0, firstIdx - CONTEXT_SEGMENTS), Math.max(0, firstIdx));
     const known = this.store.recentClaims(KNOWN_CLAIMS).filter((c) => c.status !== "descartada");
@@ -95,6 +98,9 @@ export class Pipeline {
       return;
     }
 
+    // O debate foi encerrado enquanto a triagem rodava: não mistura com o próximo.
+    if (epoch !== this.epoch) return;
+
     // Perguntas feitas no debate: pesquisa o assunto antes da resposta chegar.
     if (this.brief) {
       for (const q of extracted.perguntas) {
@@ -103,6 +109,7 @@ export class Pipeline {
             tipo: "pergunta",
             speakerId: chunk.speakerId === AUTO_SPEAKER ? (q.quem_pergunta ?? AUTO_SPEAKER) : chunk.speakerId,
             segmentIds: chunk.segmentIds,
+            videoTime: this.videoTimeFor(chunk, q.trecho),
             trecho: q.trecho,
             afirmacao: q.pergunta,
             categoria: "outro",
@@ -120,6 +127,7 @@ export class Pipeline {
         // Na transmissão (orador "auto") vale quem o modelo identificou pelo contexto.
         speakerId: chunk.speakerId === AUTO_SPEAKER ? (item.orador_id ?? AUTO_SPEAKER) : chunk.speakerId,
         segmentIds: chunk.segmentIds,
+        videoTime: this.videoTimeFor(chunk, item.trecho),
         trecho: item.trecho,
         afirmacao: item.afirmacao,
         categoria: item.categoria,
@@ -181,6 +189,23 @@ export class Pipeline {
     } catch (err) {
       this.store.updateClaim(id, { status: "erro", erro: describeError(err) });
     }
+  }
+
+  /** Minuto do vídeo da fala: o segmento que contém o começo do trecho, senão o primeiro do bloco. */
+  private videoTimeFor(chunk: Chunk, trecho: string): number | undefined {
+    const ids = new Set(chunk.segmentIds);
+    const segs = this.store.segments.filter((s) => ids.has(s.id) && s.videoTime !== undefined);
+    const inicio = trecho.toLowerCase().replace(/[“”"]/g, "").slice(0, 30);
+    const achado = segs.find((s) => s.text.toLowerCase().includes(inicio)) ?? segs[0];
+    return achado?.videoTime;
+  }
+
+  /** Debate encerrado: descarta o que ainda estava na fila e a fala acumulada. */
+  reset() {
+    this.epoch++;
+    this.segmenter.discard();
+    this.checks.clear();
+    this.extractions.clear();
   }
 
   private contextFor(claim: Claim): Segment[] {

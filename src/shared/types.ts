@@ -76,6 +76,8 @@ export interface Segment {
   speakerId: string;
   text: string;
   at: number;
+  /** Segundo do vídeo do YouTube em que a fala começou (modo transmissão). */
+  videoTime?: number;
 }
 
 export interface Source {
@@ -137,6 +139,8 @@ export interface Claim {
   editado?: boolean;
   /** Por que a checagem ficou retida para revisão em vez de ir direto ao ar. */
   revisao?: string;
+  /** Segundo do vídeo em que a fala começou: o público clica e o player pula para lá. */
+  videoTime?: number;
   erro?: string;
 }
 
@@ -171,6 +175,16 @@ export interface PublicState {
   claims: Claim[];
   /** captura: a redação está transcrevendo agora; youtube: vídeo da transmissão. */
   settings: { autoPublish: boolean; demo: boolean; captura: boolean; youtube: string | null };
+}
+
+/** Debate encerrado e guardado: aparece na lista de debates anteriores. */
+export interface ArquivoResumo {
+  id: string;
+  titulo: string;
+  data: string;
+  encerradoEm: number;
+  youtube: string | null;
+  checagens: number;
 }
 
 export type ServerEvent =

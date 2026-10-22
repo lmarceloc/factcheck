@@ -31,6 +31,11 @@ export class PriorityQueue {
     this.next();
   }
 
+  /** Descarta o que ainda não começou (o que já está rodando termina sozinho). */
+  clear() {
+    this.jobs = [];
+  }
+
   /** Resolve quando não houver nada rodando nem esperando. */
   onIdle(): Promise<void> {
     if (this.running === 0 && this.jobs.length === 0) return Promise.resolve();

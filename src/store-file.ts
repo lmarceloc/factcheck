@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Meta, Persisted, Persistence } from "./store.js";
-import type { Claim, Segment } from "./shared/types.js";
+import type { ArquivoResumo, Claim, PublicState, Segment } from "./shared/types.js";
 
 /** Grava o estado inteiro num JSON (com atraso de meio segundo para agrupar mudanças). */
 export class FilePersistence implements Persistence {
@@ -47,6 +47,38 @@ export class FilePersistence implements Persistence {
       this.timer = null;
       this.flush();
     }, 500);
+  }
+
+  clear() {
+    this.segments = [];
+    this.claims.clear();
+    this.meta = { currentSpeaker: null, youtube: null };
+    this.flush();
+  }
+
+  private get archiveDir() {
+    return path.join(path.dirname(this.file), "arquivos");
+  }
+
+  saveArchive(resumo: ArquivoResumo, estado: PublicState) {
+    fs.mkdirSync(this.archiveDir, { recursive: true });
+    fs.writeFileSync(path.join(this.archiveDir, `${resumo.id}.json`), JSON.stringify({ resumo, estado }));
+  }
+
+  listArchives(): ArquivoResumo[] {
+    if (!fs.existsSync(this.archiveDir)) return [];
+    return fs
+      .readdirSync(this.archiveDir)
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => (JSON.parse(fs.readFileSync(path.join(this.archiveDir, f), "utf8")) as { resumo: ArquivoResumo }).resumo)
+      .sort((a, b) => b.encerradoEm - a.encerradoEm);
+  }
+
+  getArchive(id: string): PublicState | null {
+    if (!/^[\w-]+$/.test(id)) return null;
+    const file = path.join(this.archiveDir, `${id}.json`);
+    if (!fs.existsSync(file)) return null;
+    return (JSON.parse(fs.readFileSync(file, "utf8")) as { estado: PublicState }).estado;
   }
 
   flush() {
