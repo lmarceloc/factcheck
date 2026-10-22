@@ -64,7 +64,7 @@ export function definirFerramentas(registro: Registro, cliente: ClienteDados): A
     },
     {
       name: "serie_bcb",
-      description: `Série temporal do Banco Central (SGS), já normalizada (data AAAA-MM-DD, valor numérico). As séries do catálogo ficam sincronizadas no banco e respondem na hora: ${series}. Outros códigos do SGS também funcionam.`,
+      description: `Série temporal do Banco Central (SGS), já normalizada (data AAAA-MM-DD, valor numérico). As séries do catálogo ficam sincronizadas no banco e respondem na hora: ${series}. Outros códigos do SGS também funcionam. Atenção: a série 432 (meta Selic) é diária e já vem preenchida com datas futuras até a próxima reunião do Copom; o que importa é o valor vigente e a data em que ele passou a valer.`,
       strict: true,
       input_schema: {
         type: "object",
