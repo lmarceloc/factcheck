@@ -55,7 +55,7 @@ DEMO_MODE = "false"
 ASSEMBLYAI_SPEECH_MODEL = "universal-3-6-pro"
 ASSEMBLYAI_PARAMS = "language_code=pt"
 # Endereço público do site (worker-site/), usado nos links de compartilhamento.
-SITE_URL = "https://factcheck.agenciabyte.com"
+SITE_URL = "https://checagem.agenciabyte.com"
 
 [observability]
 enabled = true
