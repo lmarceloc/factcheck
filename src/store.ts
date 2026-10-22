@@ -1,11 +1,17 @@
 import { EventEmitter } from "node:events";
-import type { ArquivoResumo, Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
+import type { ArquivoResumo, ChecagemPublica, Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
 
 export interface Meta {
   currentSpeaker: string | null;
   /** Vídeo do YouTube da transmissão, escolhido pela redação e mostrado a todos. */
   youtube: string | null;
+  /** A redação ligou a transcrição e o último sinal de vida dela (o painel avisa a cada minuto). */
+  captura?: boolean;
+  capturaVistaEm?: number;
 }
+
+/** Sem sinal do painel por este tempo, a tela pública deixa de dizer "Checando ao vivo". */
+export const CAPTURA_VALIDADE_MS = 3 * 60_000;
 
 export type Persisted = Pick<PublicState, "segments" | "claims"> & Partial<Meta>;
 
@@ -30,8 +36,9 @@ export class Store extends EventEmitter {
   claims = new Map<string, Claim>();
   currentSpeaker: string | null = null;
   autoPublish: boolean;
-  /** A redação está transcrevendo a transmissão agora. */
-  captura = false;
+  /** A redação está transcrevendo a transmissão agora (vale enquanto o painel der sinal de vida). */
+  private capturaLigada = false;
+  private capturaVistaEm = 0;
   youtube: string | null = null;
   readonly demo: boolean;
   private readonly persistence?: Persistence;
@@ -58,6 +65,10 @@ export class Store extends EventEmitter {
     };
   }
 
+  get captura() {
+    return this.capturaLigada && Date.now() - this.capturaVistaEm < CAPTURA_VALIDADE_MS;
+  }
+
   settings() {
     return { autoPublish: this.autoPublish, demo: this.demo, captura: this.captura, youtube: this.youtube };
   }
@@ -79,13 +90,24 @@ export class Store extends EventEmitter {
   }
 
   private saveMeta() {
-    this.persistence?.saveMeta({ currentSpeaker: this.currentSpeaker, youtube: this.youtube });
+    this.persistence?.saveMeta({
+      currentSpeaker: this.currentSpeaker,
+      youtube: this.youtube,
+      captura: this.capturaLigada,
+      capturaVistaEm: this.capturaVistaEm,
+    });
   }
 
+  /**
+   * Liga/desliga o "Checando ao vivo". Fica gravado (sobrevive a um reinício do
+   * servidor) e repetir `true` renova o prazo: é o sinal de vida do painel.
+   */
   setCaptura(value: boolean) {
-    if (this.captura === value) return;
-    this.captura = value;
-    this.emitEvent({ type: "settings", settings: this.settings() });
+    const antes = this.captura;
+    this.capturaLigada = value;
+    if (value) this.capturaVistaEm = Date.now();
+    this.saveMeta();
+    if (antes !== this.captura) this.emitEvent({ type: "settings", settings: this.settings() });
   }
 
   setAutoPublish(value: boolean) {
@@ -140,9 +162,21 @@ export class Store extends EventEmitter {
     this.claims.clear();
     this.currentSpeaker = null;
     this.youtube = null;
-    this.captura = false;
+    this.capturaLigada = false;
     this.emitEvent({ type: "snapshot", state: this.snapshot() });
     return resumo;
+  }
+
+  /** Checagem publicada pelo id: procura no debate atual e depois nos arquivados (link permanente). */
+  findPublished(id: string): ChecagemPublica | null {
+    const atual = this.claims.get(id);
+    if (atual?.status === "publicada") return { claim: atual, debate: this.debate, youtube: this.youtube, arquivoId: null };
+    for (const resumo of this.listArchives()) {
+      const estado = this.getArchive(resumo.id);
+      const claim = estado?.claims.find((c) => c.id === id && c.status === "publicada");
+      if (claim && estado) return { claim, debate: estado.debate, youtube: estado.settings.youtube, arquivoId: resumo.id };
+    }
+    return null;
   }
 
   listArchives(): ArquivoResumo[] {
@@ -167,6 +201,8 @@ export class Store extends EventEmitter {
     this.segments = data.segments ?? [];
     this.currentSpeaker = data.currentSpeaker ?? null;
     this.youtube = data.youtube ?? null;
+    this.capturaLigada = data.captura ?? false;
+    this.capturaVistaEm = data.capturaVistaEm ?? 0;
     for (const claim of data.claims ?? []) {
       // Checagens interrompidas por um reinício voltam para a fila.
       if (claim.status === "verificando") claim.status = "na_fila";

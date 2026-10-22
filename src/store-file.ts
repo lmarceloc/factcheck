@@ -17,7 +17,12 @@ export class FilePersistence implements Persistence {
     try {
       const data = JSON.parse(fs.readFileSync(this.file, "utf8")) as Persisted;
       this.segments = data.segments ?? [];
-      this.meta = { currentSpeaker: data.currentSpeaker ?? null, youtube: data.youtube ?? null };
+      this.meta = {
+        currentSpeaker: data.currentSpeaker ?? null,
+        youtube: data.youtube ?? null,
+        captura: data.captura ?? false,
+        capturaVistaEm: data.capturaVistaEm ?? 0,
+      };
       for (const c of data.claims ?? []) this.claims.set(c.id, c);
       return data;
     } catch (err) {

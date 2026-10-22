@@ -1,3 +1,5 @@
+import type { ChecagemPublica } from "../../src/shared/types";
+import { VERDICT_LABELS } from "../../src/shared/types";
 import type { Env } from "./debate";
 
 export { Debate } from "./debate";
@@ -30,11 +32,53 @@ async function publicState(env: Env, ctx: ExecutionContext): Promise<Response> {
   return res;
 }
 
+const attr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+/**
+ * Página de uma checagem com prévia para compartilhar (WhatsApp, redes): a
+ * mesma página do site, com título e descrição da checagem no <head>.
+ */
+async function paginaChecagem(req: Request, env: Env, id: string): Promise<Response> {
+  const url = new URL(req.url);
+  const pagina = await env.ASSETS.fetch(new Request(new URL("/", url), req));
+  const res = await env.DEBATE.get(env.DEBATE.idFromName("principal")).fetch(`https://do/api/public/checagem/${id}`);
+  if (!res.ok) return pagina;
+  const { claim, debate } = (await res.json()) as ChecagemPublica;
+  const r = claim.resultado;
+  if (!r) return pagina;
+  const nome = [...debate.candidatos, ...debate.outros_falantes].find((s) => s.id === claim.speakerId)?.nome ?? "";
+  const titulo = `${VERDICT_LABELS[r.veredito].toUpperCase()}: ${nome ? `${nome} — ` : ""}“${claim.trecho}”`;
+  const descricao = r.resumo;
+  const tags = [
+    ["og:title", titulo],
+    ["og:description", descricao],
+    ["og:type", "article"],
+    ["og:url", url.toString()],
+    ["og:site_name", debate.marca.nome],
+  ]
+    .map(([p, c]) => `<meta property="${p}" content="${attr(c)}">`)
+    .join("");
+  return new HTMLRewriter()
+    .on("title", {
+      element: (el) => {
+        el.setInnerContent(`${titulo} · ${debate.marca.nome}`);
+      },
+    })
+    .on("head", {
+      element: (el) => {
+        el.append(`${tags}<meta name="description" content="${attr(descricao)}"><meta name="twitter:card" content="summary">`, { html: true });
+      },
+    })
+    .transform(pagina);
+}
+
 // O site (tela do público, painel e telão) é servido dos arquivos estáticos;
 // só /api/* chega aqui e vai para o Durable Object do debate.
 export default {
   async fetch(req, env, ctx): Promise<Response> {
     const url = new URL(req.url);
+    const checagem = url.pathname.match(/^\/checagem\/([\w-]+)$/);
+    if (checagem && req.method === "GET") return paginaChecagem(req, env, checagem[1]);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
     if (req.method === "GET" && url.pathname === PUBLIC_STATE) return publicState(env, ctx);
     const stub = env.DEBATE.get(env.DEBATE.idFromName("principal"));

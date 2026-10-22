@@ -179,6 +179,15 @@ export interface PublicState {
   settings: { autoPublish: boolean; demo: boolean; captura: boolean; youtube: string | null };
 }
 
+/** Uma checagem publicada, com o que a página própria dela precisa mostrar. */
+export interface ChecagemPublica {
+  claim: Claim;
+  debate: DebateInfo;
+  youtube: string | null;
+  /** Debate arquivado de onde ela veio (null se for do debate atual). */
+  arquivoId: string | null;
+}
+
 /** Debate encerrado e guardado: aparece na lista de debates anteriores. */
 export interface ArquivoResumo {
   id: string;

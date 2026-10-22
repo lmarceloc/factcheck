@@ -26,7 +26,7 @@ export function Arquivos() {
       <div className="aurora" aria-hidden />
       <header className="assistir__top">
         <a href="/" aria-label="Voltar ao debate ao vivo">
-          <Logo nome={marca?.nome ?? "Byte Fact Check"} />
+          <Logo nome={marca?.nome ?? "Byte Fact Check"} aoVivo={false} />
         </a>
         <div className="assistir__titulo">
           <h1>Debates anteriores</h1>

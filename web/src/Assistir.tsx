@@ -33,7 +33,7 @@ const tempo = (t: number) => {
   return new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 };
 
-function hostname(url: string) {
+export function hostname(url: string) {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {
@@ -89,7 +89,7 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
   if (arquivoId && arquivo.erro) {
     return (
       <div className="loading">
-        <Logo big />
+        <Logo big aoVivo={false} />
         <p>Debate não encontrado.</p>
         <a className="btn" href="/arquivos">
           Debates anteriores
@@ -118,7 +118,7 @@ export function Assistir({ arquivoId }: { arquivoId?: string }) {
       {settings.demo && <div className="demo-watermark">Simulação · não é checagem real</div>}
 
       <header className="assistir__top">
-        <Logo nome={debate.marca.nome} />
+        <Logo nome={debate.marca.nome} aoVivo={!arquivoId && settings.captura} />
         <div className="assistir__titulo">
           <h1>{debate.titulo}</h1>
           <span>
@@ -208,6 +208,19 @@ function AoVivo({ ativo, online }: { ativo: boolean; online: boolean }) {
   );
 }
 
+/** Texto curto: corta no fim da palavra e põe reticências. */
+export function curto(texto: string, max: number) {
+  if (texto.length <= max) return texto;
+  return `${texto.slice(0, texto.lastIndexOf(" ", max)).replace(/[,.;:]$/, "")}…`;
+}
+
+/** Nome curto da fonte principal para o dado-chave do card (ex.: ibge.gov.br). */
+export function fontePrincipal(claim: Claim): string | null {
+  const fontes = claim.resultado?.fontes ?? [];
+  const f = fontes.find((x) => x.confirmada) ?? fontes[0];
+  return f ? hostname(f.url) : null;
+}
+
 function CartaoPublico({
   claim,
   speaker,
@@ -221,10 +234,10 @@ function CartaoPublico({
   quando: string;
   irPara?: () => void;
 }) {
-  const [aberto, setAberto] = useState(false);
   const r = claim.resultado!;
   const v = VERDICT_STYLE[r.veredito];
   const nome = speaker?.nome ?? (claim.speakerId === AUTO_SPEAKER ? "Não identificado" : claim.speakerId);
+  const fonte = fontePrincipal(claim);
 
   return (
     <motion.article
@@ -244,10 +257,21 @@ function CartaoPublico({
       <VerdictBadge verdict={r.veredito} />
       <blockquote className="pub__fala">“{claim.trecho}”</blockquote>
       <p className="pub__resumo">{r.resumo}</p>
+      {r.dados && (
+        <p className="pub__dado">
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M5 19V11M12 19V5M19 19v-6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+          </svg>
+          <span>
+            {curto(r.dados, 140)}
+            {fonte && <em> · {fonte}</em>}
+          </span>
+        </p>
+      )}
       <div className="pub__acoes">
-        <button className="link" onClick={() => setAberto((a) => !a)}>
-          {aberto ? "Fechar" : "Por quê? Ver dados e fontes"}
-        </button>
+        <a className="pub__entenda" href={`/checagem/${claim.id}`} target="_blank" rel="noopener">
+          Entenda a checagem →
+        </a>
         {irPara && (
           <motion.button className="pub__video" onClick={irPara} whileTap={{ scale: 0.94 }} title="Ir para este momento do vídeo">
             <svg viewBox="0 0 24 24" aria-hidden>
@@ -257,31 +281,6 @@ function CartaoPublico({
           </motion.button>
         )}
       </div>
-      <AnimatePresence initial={false}>
-        {aberto && (
-          <motion.div className="pub__detalhe" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
-            <p>{r.explicacao}</p>
-            <p>
-              <strong>O que dizem os dados: </strong>
-              {r.dados}
-            </p>
-            <ul className="sources">
-              {r.fontes.map((f) => (
-                <li key={f.url}>
-                  <a href={f.url} target="_blank" rel="noreferrer">
-                    {f.titulo}
-                  </a>
-                  <span>{hostname(f.url)}</span>
-                </li>
-              ))}
-            </ul>
-            <small className="pub__ia">
-              Checagem automática por IA · confiança {r.confianca}
-              {claim.editado ? " · revisada pela redação" : ""}
-            </small>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.article>
   );
 }

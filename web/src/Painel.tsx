@@ -129,6 +129,12 @@ export function Painel() {
     capturaAnterior.current = assembly.listening;
     api.transmissao({ captura: assembly.listening }).catch(() => {});
   }, [assembly.listening]);
+  // Sinal de vida: se este navegador fechar ou cair, o "ao vivo" do público se apaga sozinho em minutos.
+  useEffect(() => {
+    if (!assembly.listening) return;
+    const t = window.setInterval(() => api.transmissao({ captura: true }).catch(() => {}), 60_000);
+    return () => window.clearInterval(t);
+  }, [assembly.listening]);
 
   // Atalhos: 1–9 escolhe o orador, 0 ninguém, M liga/desliga o microfone.
   useEffect(() => {

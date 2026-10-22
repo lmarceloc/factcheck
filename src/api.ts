@@ -33,9 +33,19 @@ export interface ApiOptions {
 
 const isPublic = (c: Claim) => c.status === "publicada";
 
-/** O telão só enxerga o que o editor publicou: nada de rascunho nem transcrição bruta. */
+/** Tira da checagem o que é interno da redação (nota ao editor, motivo de revisão, buscas). */
+export function publicClaim(c: Claim): Claim {
+  const { revisao: _revisao, erro: _erro, progresso: _progresso, resultado, ...rest } = c;
+  return {
+    ...rest,
+    progresso: [],
+    ...(resultado ? { resultado: { ...resultado, nota_editor: null, buscas: [] } } : {}),
+  };
+}
+
+/** O público só enxerga o que o editor publicou: nada de rascunho, transcrição bruta ou nota interna. */
 export function publicSnapshot(state: PublicState): PublicState {
-  return { ...state, segments: [], claims: state.claims.filter(isPublic) };
+  return { ...state, segments: [], claims: state.claims.filter(isPublic).map(publicClaim) };
 }
 
 export function publicEvent(event: ServerEvent): ServerEvent | null {
@@ -43,7 +53,7 @@ export function publicEvent(event: ServerEvent): ServerEvent | null {
     case "snapshot":
       return { type: "snapshot", state: publicSnapshot(event.state) };
     case "claim":
-      return isPublic(event.claim) ? event : { type: "claim_hidden", id: event.claim.id };
+      return isPublic(event.claim) ? { type: "claim", claim: publicClaim(event.claim) } : { type: "claim_hidden", id: event.claim.id };
     case "segment":
     case "interim":
       return null;
@@ -108,6 +118,11 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
       return ok({ ok: true, fila: pipeline.checks.size, verificando: pipeline.checks.active });
     }
     if (route === "GET /api/public/state") return ok(publicSnapshot(store.snapshot()));
+    const chk = path.match(/^\/api\/public\/checagem\/([\w-]+)$/);
+    if (chk && method === "GET") {
+      const achada = store.findPublished(chk[1]);
+      return achada ? ok({ ...achada, claim: publicClaim(achada.claim) }) : fail(404, "Checagem não encontrada.");
+    }
     // Debates encerrados: lista e cada um completo (o público vê só o que foi publicado).
     if (route === "GET /api/arquivos") return ok(store.listArchives());
     const arq = path.match(/^\/api\/arquivos\/([\w-]+)$/);
