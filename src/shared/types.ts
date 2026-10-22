@@ -135,15 +135,37 @@ export interface Claim {
   contexto?: ContextResult;
   repeteDe?: string;
   editado?: boolean;
+  /** Por que a checagem ficou retida para revisão em vez de ir direto ao ar. */
+  revisao?: string;
   erro?: string;
 }
+
+/**
+ * Publicação automática: vai direto para a tela, exceto o que é incerto
+ * (confiança baixa ou sem dados) ou exagerado, que espera revisão humana.
+ */
+export function motivoRevisao(r: CheckResult): string | null {
+  if (r.confianca === "baixa") return "confiança baixa";
+  if (r.veredito === "insustentavel") return "sem dados para comprovar";
+  if (r.veredito === "exagerado") return "exagerado";
+  return null;
+}
+
+/** Agrupa os vereditos para o contador do espectador. */
+export const GRUPOS_CONTADOR = [
+  { id: "verdades", label: "Verdades", vereditos: ["verdadeiro", "verdadeiro_mas"] as Verdict[] },
+  { id: "mentiras", label: "Mentiras", vereditos: ["falso"] as Verdict[] },
+  { id: "distorcoes", label: "Exageros e distorções", vereditos: ["exagerado", "distorcido"] as Verdict[] },
+  { id: "sem_dados", label: "Sem comprovação", vereditos: ["insustentavel"] as Verdict[] },
+] as const;
 
 export interface PublicState {
   debate: DebateInfo;
   currentSpeaker: string | null;
   segments: Segment[];
   claims: Claim[];
-  settings: { autoPublish: boolean; demo: boolean };
+  /** captura: a redação está transcrevendo agora; youtube: vídeo da transmissão. */
+  settings: { autoPublish: boolean; demo: boolean; captura: boolean; youtube: string | null };
 }
 
 export type ServerEvent =

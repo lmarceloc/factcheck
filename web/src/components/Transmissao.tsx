@@ -1,8 +1,6 @@
 import { AnimatePresence, motion, useTransform, type MotionValue } from "motion/react";
 import { useState } from "react";
 
-const KEY = "factcheck.youtube";
-
 /** Aceita links de vídeo, live, shorts, youtu.be e embed; devolve o id do vídeo. */
 export function youtubeId(url: string): string | null {
   const s = url.trim();
@@ -20,15 +18,10 @@ export function youtubeId(url: string): string | null {
   }
 }
 
-function lerSalvo(): string {
-  try {
-    return localStorage.getItem(KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
 interface Props {
+  /** Vídeo atual da transmissão (definido no servidor e mostrado a todos). */
+  youtube: string | null;
+  onLoad: (videoId: string) => Promise<unknown>;
   available: boolean;
   listening: boolean;
   level: MotionValue<number>;
@@ -40,9 +33,9 @@ interface Props {
  * Modo transmissão: o player do YouTube fica na própria página; ao começar, o
  * Chrome compartilha o áudio desta aba com o AssemblyAI e as checagens vão saindo.
  */
-export function Transmissao({ available, listening, level, onStart, onStop }: Props) {
-  const [url, setUrl] = useState(lerSalvo);
-  const [loaded, setLoaded] = useState(() => youtubeId(lerSalvo()));
+export function Transmissao({ youtube, onLoad, available, listening, level, onStart, onStop }: Props) {
+  const [url, setUrl] = useState(() => (youtube ? `https://www.youtube.com/watch?v=${youtube}` : ""));
+  const loaded = youtube;
   const [erro, setErro] = useState<string | null>(null);
   const width = useTransform(level, (v) => `${Math.round(8 + v * 92)}%`);
 
@@ -50,12 +43,7 @@ export function Transmissao({ available, listening, level, onStart, onStop }: Pr
     const id = youtubeId(url);
     if (!id) return setErro("Link do YouTube não reconhecido.");
     setErro(null);
-    setLoaded(id);
-    try {
-      localStorage.setItem(KEY, url);
-    } catch {
-      /* sem armazenamento: só não lembra o link */
-    }
+    onLoad(id).catch((e) => setErro((e as Error).message));
   };
 
   return (
@@ -70,12 +58,12 @@ export function Transmissao({ available, listening, level, onStart, onStop }: Pr
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Cole o link da transmissão no YouTube (ao vivo ou gravada)"
+          placeholder="Link da transmissão no YouTube: vai para a tela de todos os espectadores"
           aria-label="Link do YouTube"
           disabled={listening}
         />
         <button className="btn" disabled={listening}>
-          Carregar
+          {loaded ? "Trocar" : "Carregar"}
         </button>
       </form>
       {erro && <p className="claim__error">{erro}</p>}

@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AUTO_SPEAKER, type SpeakerInfo } from "../../src/shared/types";
-import { api } from "./api";
+import { api, operatorToken } from "./api";
 import { ClaimFeed } from "./components/ClaimFeed";
 import { Logo } from "./components/Logo";
 import { ManualInput } from "./components/ManualInput";
@@ -94,8 +94,19 @@ export function Painel() {
   const toggleMic = useCallback(() => (speech.listening ? speech.stop() : speech.start()), [speech]);
   const startTransmissao = async () => {
     await api.setSpeaker(AUTO_SPEAKER).catch((e) => notify(e.message));
-    assembly.start("esta_aba");
+    await assembly.start("esta_aba");
   };
+  const stopTransmissao = () => {
+    assembly.stop();
+  };
+  // Avisa o público quando a transcrição liga ou desliga ("Checando ao vivo").
+  // Só nas mudanças: abrir o painel não pode desligar a transcrição de outro operador.
+  const capturaAnterior = useRef(assembly.listening);
+  useEffect(() => {
+    if (capturaAnterior.current === assembly.listening) return;
+    capturaAnterior.current = assembly.listening;
+    api.transmissao({ captura: assembly.listening }).catch(() => {});
+  }, [assembly.listening]);
 
   // Atalhos: 1–9 escolhe o orador, 0 ninguém, M liga/desliga o microfone.
   useEffect(() => {
@@ -111,7 +122,7 @@ export function Painel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [speakers, selectSpeaker, toggleMic, modo]);
 
-  if (!data) return <Loading connected={connected} />;
+  if (!data) return operatorToken() ? <Loading connected={connected} /> : <Acesso />;
 
   const checking = claimList.filter((c) => c.status === "verificando" || c.status === "na_fila").length;
   const review = claimList.filter((c) => c.status === "rascunho" && c.tipo !== "pergunta").length;
@@ -151,7 +162,7 @@ export function Painel() {
           ))}
         </div>
         <div className="topbar__actions">
-          <label className="switch" title="Publica no telão sem revisão humana">
+          <label className="switch" title="Publica direto na tela do público; incertas e exageradas sempre esperam revisão">
             <input
               type="checkbox"
               checked={data.settings.autoPublish}
@@ -162,6 +173,9 @@ export function Painel() {
             </span>
             Publicar direto
           </label>
+          <a className="btn btn--ghost" href="/" target="_blank" rel="noreferrer">
+            Página pública ↗
+          </a>
           <a className="btn btn--ghost" href="/telao" target="_blank" rel="noreferrer">
             Telão ↗
           </a>
@@ -194,11 +208,13 @@ export function Painel() {
                 Transmissão <span className="badge">ao vivo</span>
               </h2>
               <Transmissao
+                youtube={data.settings.youtube}
+                onLoad={(id) => api.transmissao({ youtube: id })}
                 available={assemblyOn}
                 listening={assembly.listening}
                 level={assembly.level}
                 onStart={startTransmissao}
-                onStop={assembly.stop}
+                onStop={stopTransmissao}
               />
               <button className="link tx__toggle" onClick={() => setVerTranscricao((v) => !v)}>
                 {verTranscricao ? "Esconder transcrição" : `Mostrar transcrição (${data.segments.length} falas)`}
@@ -270,6 +286,27 @@ export function Loading({ connected }: { connected: boolean }) {
       <motion.p animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.6, repeat: Infinity }}>
         {connected ? "Carregando o debate…" : "Conectando ao servidor…"}
       </motion.p>
+    </div>
+  );
+}
+
+/** Painel da redação sem senha: pede o OPERATOR_TOKEN e guarda neste navegador. */
+function Acesso() {
+  const [token, setToken] = useState("");
+  return (
+    <div className="loading">
+      <Logo big />
+      <form
+        className="acesso"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (token.trim()) location.href = `/painel?token=${encodeURIComponent(token.trim())}`;
+        }}
+      >
+        <label htmlFor="token">Painel da redação</label>
+        <input id="token" type="password" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Senha (OPERATOR_TOKEN)" autoFocus />
+        <button className="btn btn--publish">Entrar</button>
+      </form>
     </div>
   );
 }

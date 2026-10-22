@@ -1,14 +1,20 @@
 import { EventEmitter } from "node:events";
 import type { Claim, DebateInfo, PublicState, Segment, ServerEvent } from "./shared/types.js";
 
-export type Persisted = Pick<PublicState, "segments" | "claims" | "currentSpeaker">;
+export interface Meta {
+  currentSpeaker: string | null;
+  /** Vídeo do YouTube da transmissão, escolhido pela redação e mostrado a todos. */
+  youtube: string | null;
+}
+
+export type Persisted = Pick<PublicState, "segments" | "claims"> & Partial<Meta>;
 
 /** Onde o estado do debate é gravado: arquivo JSON no Node, SQLite no Durable Object. */
 export interface Persistence {
   load(): Persisted | null;
   saveSegment(segment: Segment): void;
   saveClaim(claim: Claim): void;
-  saveMeta(meta: { currentSpeaker: string | null }): void;
+  saveMeta(meta: Meta): void;
   /** Grava o que estiver pendente (no desligamento). */
   flush?(): void;
 }
@@ -19,6 +25,9 @@ export class Store extends EventEmitter {
   claims = new Map<string, Claim>();
   currentSpeaker: string | null = null;
   autoPublish: boolean;
+  /** A redação está transcrevendo a transmissão agora. */
+  captura = false;
+  youtube: string | null = null;
   readonly demo: boolean;
   private readonly persistence?: Persistence;
 
@@ -45,7 +54,7 @@ export class Store extends EventEmitter {
   }
 
   settings() {
-    return { autoPublish: this.autoPublish, demo: this.demo };
+    return { autoPublish: this.autoPublish, demo: this.demo, captura: this.captura, youtube: this.youtube };
   }
 
   emitEvent(event: ServerEvent) {
@@ -55,7 +64,23 @@ export class Store extends EventEmitter {
   setSpeaker(speakerId: string | null) {
     this.currentSpeaker = speakerId;
     this.emitEvent({ type: "speaker", speakerId });
-    this.persistence?.saveMeta({ currentSpeaker: speakerId });
+    this.saveMeta();
+  }
+
+  setYoutube(videoId: string | null) {
+    this.youtube = videoId;
+    this.emitEvent({ type: "settings", settings: this.settings() });
+    this.saveMeta();
+  }
+
+  private saveMeta() {
+    this.persistence?.saveMeta({ currentSpeaker: this.currentSpeaker, youtube: this.youtube });
+  }
+
+  setCaptura(value: boolean) {
+    if (this.captura === value) return;
+    this.captura = value;
+    this.emitEvent({ type: "settings", settings: this.settings() });
   }
 
   setAutoPublish(value: boolean) {
@@ -103,6 +128,7 @@ export class Store extends EventEmitter {
     if (!data) return;
     this.segments = data.segments ?? [];
     this.currentSpeaker = data.currentSpeaker ?? null;
+    this.youtube = data.youtube ?? null;
     for (const claim of data.claims ?? []) {
       // Checagens interrompidas por um reinício voltam para a fila.
       if (claim.status === "verificando") claim.status = "na_fila";

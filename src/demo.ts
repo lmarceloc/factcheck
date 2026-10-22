@@ -54,7 +54,7 @@ export const demoVerifier: Verifier = async (claim, _context, onProgress) => {
     explicacao:
       "Este resultado foi gerado pelo modo de demonstração (DEMO_MODE=true), que não consulta nenhuma fonte. Use apenas para ensaiar a operação do painel e do telão.",
     dados: "Nenhum dado foi consultado.",
-    confianca: "baixa",
+    confianca: (["alta", "media", "alta", "baixa"] as const)[hash(claim.trecho) % 4],
     fontes: [{ titulo: "IBGE — Instituto Brasileiro de Geografia e Estatística", url: "https://www.ibge.gov.br/", confirmada: false }],
     nota_editor: "Modo de demonstração ativo.",
     buscas: queries,

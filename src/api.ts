@@ -65,6 +65,10 @@ const EditBody = z.object({
   speakerId: z.string().optional(),
 });
 const SettingsBody = z.object({ autoPublish: z.boolean() });
+const TransmissaoBody = z.object({
+  youtube: z.string().regex(/^[\w-]{11}$/).nullable().optional(),
+  captura: z.boolean().optional(),
+});
 
 const ok = (json: unknown): ApiResponse => ({ status: 200, json });
 const fail = (status: number, error: string): ApiResponse => ({ status, json: { error } });
@@ -155,6 +159,18 @@ export function createApi(store: Store, pipeline: Pipeline, opts: ApiOptions = {
       const body = ManualClaimBody.safeParse(req.body);
       if (!body.success || !speakerIds.has(body.data.speakerId)) return fail(400, "Informe o orador e a afirmação.");
       return ok(pipeline.submitManual(body.data.speakerId, body.data.text));
+    }
+
+    // A redação define o vídeo da transmissão (mostrado a todos) e avisa quando está transcrevendo.
+    if (route === "POST /api/transmissao") {
+      const body = TransmissaoBody.safeParse(req.body);
+      if (!body.success) return fail(400, "Vídeo do YouTube inválido.");
+      if (body.data.youtube !== undefined) store.setYoutube(body.data.youtube);
+      if (body.data.captura !== undefined) {
+        store.setCaptura(body.data.captura);
+        if (!body.data.captura) pipeline.segmenter.flush();
+      }
+      return ok(store.settings());
     }
 
     if (route === "POST /api/settings") {

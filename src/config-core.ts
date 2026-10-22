@@ -47,7 +47,11 @@ const EnvSchema = z.object({
   VERIFICATION_EFFORT: Effort.default("medium"),
   MAX_CONCURRENT_CHECKS: z.coerce.number().int().positive().default(4),
   MAX_SEARCHES_PER_CHECK: z.coerce.number().int().positive().default(5),
-  AUTO_PUBLISH: bool,
+  /** Publica direto o que é seguro; incertas e exageradas sempre esperam revisão. */
+  AUTO_PUBLISH: z
+    .string()
+    .optional()
+    .transform((v) => v === undefined || v === "true" || v === "1"),
   /** Extração e checagem falsas, sem API: só para ensaio. */
   DEMO_MODE: bool,
   /** Camada de dados oficiais: auto = gateway se DATA_GATEWAY_URL existir, senão direto. */

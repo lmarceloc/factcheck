@@ -225,6 +225,7 @@ export const ClaimCard = forwardRef<HTMLElement, Props>(function ClaimCard({ cla
         {r && editing && <EditForm key="edit" claim={claim} onDone={() => setEditing(false)} />}
       </AnimatePresence>
 
+      {claim.status === "rascunho" && claim.revisao && <p className="claim__hold">Retida para revisão: {claim.revisao}</p>}
       {claim.status === "erro" && <p className="claim__error">{claim.erro}</p>}
       {err && <p className="claim__error">{err}</p>}
 

@@ -3,7 +3,7 @@ import type { Extractor } from "./extractor.js";
 import { describeError } from "./llm.js";
 import { PriorityQueue } from "./queue.js";
 import { Segmenter, type Chunk } from "./segmenter.js";
-import { AUTO_SPEAKER, type Claim, type Segment } from "./shared/types.js";
+import { AUTO_SPEAKER, motivoRevisao, type Claim, type Segment } from "./shared/types.js";
 import type { Store } from "./store.js";
 import type { Briefer, Verifier } from "./verifier.js";
 
@@ -130,7 +130,8 @@ export class Pipeline {
 
       // Candidatos repetem bordões: reaproveita a checagem já feita na hora.
       if (original?.resultado) {
-        const publish = this.store.autoPublish || original.status === "publicada";
+        const publish =
+          original.status === "publicada" || (this.store.autoPublish && !motivoRevisao(original.resultado));
         this.store.addClaim({
           ...base,
           repeteDe: original.id,
@@ -166,9 +167,12 @@ export class Pipeline {
       const resultado = await this.verify(claim, this.contextFor(claim), onProgress);
       // O editor pode ter descartado enquanto a checagem rodava.
       if (this.store.claims.get(id)?.status !== "verificando") return;
-      const publish = this.store.autoPublish;
+      // Publica direto, exceto o que é incerto ou exagerado: isso espera revisão humana.
+      const revisao = motivoRevisao(resultado);
+      const publish = this.store.autoPublish && !revisao;
       this.store.updateClaim(id, {
         resultado,
+        revisao: revisao ?? undefined,
         status: publish ? "publicada" : "rascunho",
         ...(publish ? { publishedAt: Date.now() } : {}),
       });

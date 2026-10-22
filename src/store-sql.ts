@@ -1,4 +1,4 @@
-import type { Persisted, Persistence } from "./store.js";
+import type { Meta, Persisted, Persistence } from "./store.js";
 import type { Claim, Segment } from "./shared/types.js";
 
 /** O mínimo da API SQL do Durable Object (ctx.storage.sql) que usamos aqui. */
@@ -23,9 +23,10 @@ export class SqlPersistence implements Persistence {
       .exec(`SELECT json FROM claims ORDER BY rowid`)
       .toArray()
       .map((r) => JSON.parse(r.json as string) as Claim);
-    const speaker = this.sql.exec(`SELECT v FROM meta WHERE k = 'currentSpeaker'`).toArray()[0]?.v as string | undefined;
-    if (!segments.length && !claims.length && speaker === undefined) return null;
-    return { segments, claims, currentSpeaker: speaker ? (JSON.parse(speaker) as string | null) : null };
+    const raw = this.sql.exec(`SELECT v FROM meta WHERE k = 'meta'`).toArray()[0]?.v as string | undefined;
+    if (!segments.length && !claims.length && raw === undefined) return null;
+    const meta: Partial<Meta> = raw ? JSON.parse(raw) : {};
+    return { segments, claims, ...meta };
   }
 
   saveSegment(s: Segment) {
@@ -40,7 +41,7 @@ export class SqlPersistence implements Persistence {
     );
   }
 
-  saveMeta(meta: { currentSpeaker: string | null }) {
-    this.sql.exec(`INSERT OR REPLACE INTO meta (k, v) VALUES ('currentSpeaker', ?)`, JSON.stringify(meta.currentSpeaker));
+  saveMeta(meta: Meta) {
+    this.sql.exec(`INSERT OR REPLACE INTO meta (k, v) VALUES ('meta', ?)`, JSON.stringify(meta));
   }
 }

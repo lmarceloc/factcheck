@@ -41,6 +41,7 @@ export const api = {
   edit: (id: string, patch: { veredito?: Verdict; resumo?: string; explicacao?: string; dados?: string; speakerId?: string }) =>
     request<Claim>("PATCH", `/api/claims/${id}`, patch),
   settings: (autoPublish: boolean) => request("POST", "/api/settings", { autoPublish }),
+  transmissao: (body: { youtube?: string | null; captura?: boolean }) => request("POST", "/api/transmissao", body),
   sttConfig: () => request<{ assemblyai: boolean }>("GET", "/api/stt/config"),
   sttSession: () => request<{ url: string; sampleRate: number }>("POST", "/api/stt/session"),
 };
