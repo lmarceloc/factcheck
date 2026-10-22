@@ -13,13 +13,14 @@
     "build": "vite build web",
     "start": "NODE_ENV=production tsx src/server.ts",
     "simulate": "tsx scripts/simulate.ts",
-    "typecheck": "tsc -p . && tsc -p web && tsc -p worker && tsc -p worker-app",
+    "typecheck": "tsc -p . && tsc -p web && tsc -p worker && tsc -p worker-app && tsc -p worker-site",
     "test": "vitest run",
     "tse:ingest": "tsx scripts/tse-ingest.ts",
     "fontes:sql": "tsx scripts/fontes-sql.ts",
     "cf:prepare": "tsx scripts/cf-prepare.ts && vite build web",
     "cf:dev": "npm run cf:prepare && cd worker-app && npx wrangler dev",
     "cf:deploy": "npm run cf:prepare && cd worker-app && npx wrangler deploy",
+    "cf:site": "cd worker-site && npx wrangler deploy",
     "tse:fotos": "tsx scripts/tse-fotos.ts"
   },
   "dependencies": {

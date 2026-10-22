@@ -1,0 +1,15 @@
+# Endereço público do Byte Fact Check no domínio da agência (factcheck.agenciabyte.com).
+# O domínio agenciabyte.com está em outra conta do Cloudflare, e um Worker só ganha
+# domínio próprio na conta onde o domínio está. Então este Worker mínimo roda lá e
+# repassa tudo para o app (Worker "factcheck", na conta do projeto).
+#
+# Deploy (da raiz do projeto, logado na conta do agenciabyte.com): npm run cf:site
+# Para trocar o endereço, mude o pattern abaixo e o SITE_URL em worker-app/wrangler.toml.
+name = "factcheck-site"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = false
+routes = [{ pattern = "factcheck.agenciabyte.com", custom_domain = true }]
+
+[vars]
+ORIGEM = "https://factcheck.manychat-byte.workers.dev"

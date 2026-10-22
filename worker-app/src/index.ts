@@ -53,7 +53,8 @@ async function paginaChecagem(req: Request, env: Env, id: string): Promise<Respo
     ["og:title", titulo],
     ["og:description", descricao],
     ["og:type", "article"],
-    ["og:url", url.toString()],
+    // Endereço público (o domínio da agência), não o *.workers.dev por onde o pedido chegou.
+    ["og:url", new URL(url.pathname, typeof env.SITE_URL === "string" && env.SITE_URL ? env.SITE_URL : url.origin).toString()],
     ["og:site_name", debate.marca.nome],
   ]
     .map(([p, c]) => `<meta property="${p}" content="${attr(c)}">`)
