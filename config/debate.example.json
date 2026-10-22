@@ -1,0 +1,41 @@
+{
+  "titulo": "Debate presidencial — 2º turno",
+  "data": "2026-10-23",
+  "pais": "Brasil",
+  "emissora": "Exemplo TV",
+  "candidatos": [
+    {
+      "id": "a",
+      "nome": "Candidato A",
+      "partido": "Partido A",
+      "descricao": "Ex-governador (2019–2022). Hoje senador.",
+      "cor": "#3b82f6"
+    },
+    {
+      "id": "b",
+      "nome": "Candidata B",
+      "partido": "Partido B",
+      "descricao": "Ex-ministra da Economia (2023–2026).",
+      "cor": "#f97316"
+    }
+  ],
+  "outros_falantes": [
+    { "id": "mediador", "nome": "Mediação", "cor": "#94a3b8" }
+  ],
+  "contexto": "Contexto para os checadores: temas esperados, cargos que cada candidato já ocupou, dados oficiais recentes, polêmicas conhecidas. Tudo aqui entra no prompt do modelo.",
+  "fontes_preferidas": [
+    "ibge.gov.br",
+    "bcb.gov.br",
+    "tse.jus.br",
+    "portaldatransparencia.gov.br",
+    "tesourotransparente.gov.br",
+    "gov.br",
+    "camara.leg.br",
+    "senado.leg.br",
+    "ipea.gov.br",
+    "datasus.saude.gov.br",
+    "inep.gov.br",
+    "lupa.news",
+    "aosfatos.org"
+  ]
+}
