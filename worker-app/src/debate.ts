@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { DurableObject } from "cloudflare:workers";
 import registro from "../../config/fontes.json";
 import debateConfig from "../generated/debate.json";
@@ -7,6 +6,7 @@ import { configFromEnv, type AppConfig } from "../../src/config-core";
 import { ClienteGateway, type ClienteDados } from "../../src/data/cliente";
 import { demoExtractor, demoVerifier } from "../../src/demo";
 import { createExtractor } from "../../src/extractor";
+import { createOpenAI } from "../../src/llm";
 import { Pipeline } from "../../src/pipeline";
 import type { Registro } from "../../src/shared/dados";
 import type { ServerEvent } from "../../src/shared/types";
@@ -19,7 +19,7 @@ export interface Env {
   DEBATE: DurableObjectNamespace<Debate>;
   ASSETS: Fetcher;
   DADOS?: Fetcher;
-  ANTHROPIC_API_KEY?: string;
+  OPENAI_API_KEY?: string;
   OPERATOR_TOKEN?: string;
   DATA_GATEWAY_TOKEN?: string;
   ASSEMBLYAI_API_KEY?: string;
@@ -60,7 +60,7 @@ export class Debate extends DurableObject<Env> {
     if (config.DEMO_MODE) {
       this.pipeline = new Pipeline(this.store, demoExtractor, demoVerifier, config);
     } else {
-      const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+      const client = createOpenAI(config);
       this.pipeline = new Pipeline(this.store, createExtractor(client, config), createVerifier(client, config, dados), config);
     }
 

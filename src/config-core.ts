@@ -26,7 +26,7 @@ export const DebateConfigSchema = z.object({
 export type Speaker = z.infer<typeof SpeakerSchema>;
 export type DebateConfig = z.infer<typeof DebateConfigSchema>;
 
-const Effort = z.enum(["low", "medium", "high", "xhigh", "max"]);
+const Effort = z.enum(["minimal", "low", "medium", "high", "xhigh"]);
 export type Effort = z.infer<typeof Effort>;
 
 const bool = z
@@ -38,11 +38,13 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().default(3000),
   DEBATE_CONFIG: z.string().default("config/debate.json"),
   DATA_DIR: z.string().default("data"),
-  EXTRACTION_MODEL: z.string().default("claude-opus-5-5"),
-  VERIFICATION_MODEL: z.string().default("claude-opus-5-5"),
+  /** Chave da API da OpenAI (fica só no servidor). */
+  OPENAI_API_KEY: z.string().optional(),
+  EXTRACTION_MODEL: z.string().default("gpt-6-luna"),
+  VERIFICATION_MODEL: z.string().default("gpt-6-luna"),
+  /** Esforço de raciocínio do modelo (reasoning.effort). */
   EXTRACTION_EFFORT: Effort.default("low"),
   VERIFICATION_EFFORT: Effort.default("medium"),
-  FAST_MODE: bool,
   MAX_CONCURRENT_CHECKS: z.coerce.number().int().positive().default(4),
   MAX_SEARCHES_PER_CHECK: z.coerce.number().int().positive().default(5),
   AUTO_PUBLISH: bool,

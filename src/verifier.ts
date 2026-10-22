@@ -1,7 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type OpenAI from "openai";
 import { z } from "zod";
 import { allSpeakers, type AppConfig } from "./config-core.js";
-import { baseParams, withFastFallback } from "./llm.js";
 import type { ClienteDados } from "./data/cliente.js";
 import { definirFerramentas, executarFerramenta, FERRAMENTAS_DADOS, textoRota, type FerramentaDados } from "./data/ferramentas.js";
 import { SourceCollector } from "./sources.js";
@@ -20,12 +19,13 @@ export const VerdictInputSchema = z.object({
   nota_editor: z.string().nullable(),
 });
 
-const verdictTool: Anthropic.Beta.BetaTool = {
+const verdictTool: OpenAI.Responses.FunctionTool = {
+  type: "function",
   name: VERDICT_TOOL,
   description:
     "Registra o veredito final da checagem. Chame exatamente uma vez, depois de pesquisar, para encerrar a checagem.",
   strict: true,
-  input_schema: {
+  parameters: {
     type: "object",
     additionalProperties: false,
     required: ["veredito", "resumo", "explicacao", "dados", "confianca", "fontes", "nota_editor"],
@@ -89,8 +89,8 @@ Método:
 ${
     temDados
       ? `2. Vá primeiro às fontes oficiais pelas ferramentas de dados (consultar_fonte_oficial, serie_bcb e, quando houver, tse_votacao): são o registro primário e respondem mais rápido. Siga a rota de fontes indicada para o tema. Se não souber o código da tabela ou da série, olhe os metadados da própria fonte ou faça uma busca rápida na web para achá-lo.
-   Use web_search e web_fetch só quando as fontes oficiais não tiverem o dado, falharem, ou para contexto (por exemplo, reportagem sobre uma votação). Se uma ferramenta de dados falhar, não insista mais de uma vez: siga para a web.`
-      : "2. Pesquise com web_search. Procure o dado primário (IBGE, Banco Central, Tesouro, TSE, diários oficiais, votações na Câmara/Senado, decisões judiciais). Use web_fetch para abrir a página quando o resultado da busca não trouxer o número."
+   Use a busca na web (web_search) só quando as fontes oficiais não tiverem o dado, falharem, ou para contexto (por exemplo, reportagem sobre uma votação). Se uma ferramenta de dados falhar, não insista mais de uma vez: siga para a web.`
+      : "2. Pesquise com web_search. Procure o dado primário (IBGE, Banco Central, Tesouro, TSE, diários oficiais, votações na Câmara/Senado, decisões judiciais) e abra a página quando o resultado da busca não trouxer o número."
   }
 3. Compare: o número bate? O período é o mesmo? A comparação é justa? Falta contexto que muda a conclusão?
 4. Chame ${VERDICT_TOOL} com o veredito.
@@ -132,16 +132,17 @@ export type Verifier = (
 const MAX_ROUNDS = 12;
 const isDataTool = (name: string): name is FerramentaDados => (FERRAMENTAS_DADOS as readonly string[]).includes(name);
 
-export function createVerifier(client: Anthropic, config: AppConfig, dados: ClienteDados | null = null): Verifier {
-  const system = verificationSystemPrompt(config, dados !== null);
-  const tools: Anthropic.Beta.BetaToolUnion[] = [
+type FunctionCall = OpenAI.Responses.ResponseFunctionToolCall;
+type InputItem = OpenAI.Responses.ResponseInputItem;
+
+export function createVerifier(client: OpenAI, config: AppConfig, dados: ClienteDados | null = null): Verifier {
+  const instructions = verificationSystemPrompt(config, dados !== null);
+  const tools: OpenAI.Responses.Tool[] = [
     {
-      type: "web_search_20260209",
-      name: "web_search",
-      max_uses: config.MAX_SEARCHES_PER_CHECK,
+      type: "web_search",
+      search_context_size: "medium",
       user_location: { type: "approximate", country: "BR", timezone: "America/Sao_Paulo" },
     },
-    { type: "web_fetch_20260209", name: "web_fetch", max_uses: 3, max_content_tokens: 20000 },
     ...(dados ? definirFerramentas(config.registro, dados) : []),
     verdictTool,
   ];
@@ -149,46 +150,50 @@ export function createVerifier(client: Anthropic, config: AppConfig, dados: Clie
   return async (claim, context, onProgress) => {
     const started = Date.now();
     const sources = new SourceCollector();
-    const messages: Anthropic.Beta.BetaMessageParam[] = [
-      { role: "user", content: verificationUserPrompt(config, claim, context, textoRota(config.registro, claim.tema, dados)) },
-    ];
+    let input: string | InputItem[] = verificationUserPrompt(config, claim, context, textoRota(config.registro, claim.tema, dados));
+    let previous: string | undefined;
     let nudged = false;
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const message = await withFastFallback(config, (fast) => {
-        const stream = client.beta.messages.stream({
-          ...baseParams(config, fast),
-          model: config.VERIFICATION_MODEL,
-          max_tokens: 64000,
-          thinking: { type: "adaptive" },
-          output_config: { effort: config.VERIFICATION_EFFORT },
-          system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-          tools,
-          tool_choice: { type: "auto" },
-          messages,
-        });
-        // Mostra no painel cada busca assim que ela acontece.
-        stream.on("contentBlock", (block) => {
-          if (block.type === "server_tool_use") {
-            sources.addBlock(block);
-            onProgress([...sources.queries]);
-          }
-        });
-        return stream.finalMessage();
+      const params: OpenAI.Responses.ResponseCreateParamsStreaming = {
+        stream: true,
+        model: config.VERIFICATION_MODEL,
+        instructions,
+        input,
+        tools,
+        tool_choice: "auto",
+        reasoning: { effort: config.VERIFICATION_EFFORT },
+        max_output_tokens: 32000,
+        include: ["web_search_call.action.sources"],
+        // A conversa continua no servidor da OpenAI: cada rodada só manda o que é novo.
+        ...(previous ? { previous_response_id: previous } : {}),
+      };
+      const stream = client.responses.stream(params);
+      // Mostra no painel cada busca assim que ela termina.
+      stream.on("response.output_item.done", (event) => {
+        if (event.item.type === "web_search_call") {
+          sources.addItem(event.item);
+          onProgress([...sources.queries]);
+        }
       });
+      const response: OpenAI.Responses.Response = await stream.finalResponse();
+      previous = response.id;
+      sources.addItems(response.output.filter((item) => item.type !== "web_search_call"));
 
-      sources.addBlocks(message.content.filter((b) => b.type !== "server_tool_use"));
+      if (response.status === "failed") throw new Error(`A checagem falhou: ${response.error?.message ?? "erro da OpenAI"}`);
+      const refusal = response.output
+        .flatMap((item) => (item.type === "message" ? item.content : []))
+        .find((part) => part.type === "refusal");
+      if (refusal && refusal.type === "refusal") throw new Error(`Checagem recusada pelo modelo: ${refusal.refusal}`);
 
-      if (message.stop_reason === "refusal") {
-        throw new Error(`Checagem recusada pelo modelo (${message.stop_details?.category ?? "sem categoria"}).`);
+      const calls = response.output.filter((item): item is FunctionCall => item.type === "function_call");
+      if (response.status === "incomplete" && calls.length) {
+        throw new Error(`Resposta cortada (${response.incomplete_details?.reason ?? "incompleta"}).`);
       }
 
-      const toolUses = message.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
-      const call = toolUses.find((b) => b.name === VERDICT_TOOL);
-      if (toolUses.length && message.stop_reason === "max_tokens") throw new Error("Resposta cortada por max_tokens.");
-
+      const call = calls.find((c) => c.name === VERDICT_TOOL);
       if (call) {
-        const parsed = VerdictInputSchema.safeParse(call.input);
+        const parsed = VerdictInputSchema.safeParse(safeJson(call.arguments));
         if (parsed.success) {
           const v = parsed.data;
           return {
@@ -200,53 +205,48 @@ export function createVerifier(client: Anthropic, config: AppConfig, dados: Clie
             nota_editor: v.nota_editor,
             fontes: sources.resolve(v.fontes),
             buscas: [...sources.queries],
-            modelo: message.model,
+            modelo: response.model,
             duracaoMs: Date.now() - started,
           };
         }
       }
 
-      if (toolUses.length) {
+      if (calls.length) {
         // Executa as consultas às fontes oficiais em paralelo e devolve todos os resultados juntos.
-        const results = await Promise.all(
-          toolUses.map(async (tu): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
-            if (tu.name === VERDICT_TOOL) {
-              const issues = VerdictInputSchema.safeParse(tu.input).error?.message ?? "entrada inválida";
-              return { type: "tool_result", tool_use_id: tu.id, is_error: true, content: `Entrada inválida: ${issues}. Chame ${VERDICT_TOOL} de novo com os campos corretos.` };
+        input = await Promise.all(
+          calls.map(async (c): Promise<InputItem> => {
+            const out = (output: string): InputItem => ({ type: "function_call_output", call_id: c.call_id, output });
+            if (c.name === VERDICT_TOOL) {
+              const issues = VerdictInputSchema.safeParse(safeJson(c.arguments)).error?.message ?? "entrada inválida";
+              return out(`Entrada inválida: ${issues}. Chame ${VERDICT_TOOL} de novo com os campos corretos.`);
             }
-            if (!dados || !isDataTool(tu.name)) {
-              return { type: "tool_result", tool_use_id: tu.id, is_error: true, content: `Ferramenta desconhecida: ${tu.name}` };
-            }
-            const r = await executarFerramenta(tu.name, tu.input, dados, config.registro);
+            if (!dados || !isDataTool(c.name)) return out(`Ferramenta desconhecida: ${c.name}`);
+            const r = await executarFerramenta(c.name, safeJson(c.arguments), dados, config.registro);
             sources.addConsulta(r.rotulo);
             if (r.fonte) sources.addOficial(r.fonte.url, r.fonte.titulo);
-            return { type: "tool_result", tool_use_id: tu.id, is_error: r.erro, content: r.texto };
+            return out(r.texto);
           }),
         );
         onProgress([...sources.queries]);
-        messages.push({ role: "assistant", content: message.content });
-        messages.push({ role: "user", content: results });
         continue;
       }
 
-      // O laço de ferramentas do servidor pausou; reenviar continua de onde parou.
-      if (message.stop_reason === "pause_turn") {
-        messages.push({ role: "assistant", content: message.content });
-        continue;
-      }
-
-      if (message.stop_reason === "end_turn" && !nudged) {
+      if (!nudged) {
         nudged = true;
-        messages.push({ role: "assistant", content: message.content });
-        messages.push({
-          role: "user",
-          content: `Registre agora o veredito chamando ${VERDICT_TOOL}, com base no que já pesquisou.`,
-        });
+        input = [{ role: "user", content: `Registre agora o veredito chamando ${VERDICT_TOOL}, com base no que já pesquisou.` }];
         continue;
       }
 
-      throw new Error(`A checagem terminou sem veredito (stop_reason: ${message.stop_reason}).`);
+      throw new Error(`A checagem terminou sem veredito (status: ${response.status}).`);
     }
     throw new Error("A checagem excedeu o número de rodadas.");
   };
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }

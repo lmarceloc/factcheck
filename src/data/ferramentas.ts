@@ -1,9 +1,9 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type OpenAI from "openai";
 import { z } from "zod";
 import { rota, type Registro, type Tema } from "../shared/dados.js";
 import type { ClienteDados } from "./cliente.js";
 
-// Ferramentas que o Claude usa para consultar as fontes oficiais durante a checagem.
+// Ferramentas que o modelo usa para consultar as fontes oficiais durante a checagem.
 
 export const FERRAMENTAS_DADOS = ["consultar_fonte_oficial", "serie_bcb", "tse_votacao"] as const;
 export type FerramentaDados = (typeof FERRAMENTAS_DADOS)[number];
@@ -27,19 +27,20 @@ const TseInput = z.object({
   turno: z.number().int().nullable(),
 });
 
-export function definirFerramentas(registro: Registro, cliente: ClienteDados): Anthropic.Beta.BetaTool[] {
+export function definirFerramentas(registro: Registro, cliente: ClienteDados): OpenAI.Responses.FunctionTool[] {
   const ativas = registro.fontes.filter((f) => f.ativo);
   const catalogo = ativas
     .map((f) => `- ${f.id}: ${f.nome}. Base: ${f.base_url}. ${f.dicas} Exemplos de caminho: ${f.exemplos.join(" | ")}`)
     .join("\n");
   const series = registro.series_bcb.map((s) => `${s.codigo} = ${s.nome} (${s.unidade})`).join("; ");
 
-  const ferramentas: Anthropic.Beta.BetaTool[] = [
+  const ferramentas: OpenAI.Responses.FunctionTool[] = [
     {
+      type: "function",
       name: "consultar_fonte_oficial",
       description: `Consulta a API oficial de um órgão público brasileiro e devolve a resposta bruta (JSON ou XML, possivelmente truncada). Use antes da busca na web sempre que o dado puder estar numa destas fontes:\n${catalogo}`,
       strict: true,
-      input_schema: {
+      parameters: {
         type: "object",
         additionalProperties: false,
         required: ["fonte", "caminho", "parametros"],
@@ -63,10 +64,11 @@ export function definirFerramentas(registro: Registro, cliente: ClienteDados): A
       },
     },
     {
+      type: "function",
       name: "serie_bcb",
       description: `Série temporal do Banco Central (SGS), já normalizada (data AAAA-MM-DD, valor numérico). As séries do catálogo ficam sincronizadas no banco e respondem na hora: ${series}. Outros códigos do SGS também funcionam. Atenção: a série 432 (meta Selic) é diária e já vem preenchida com datas futuras até a próxima reunião do Copom; o que importa é o valor vigente e a data em que ele passou a valer.`,
       strict: true,
-      input_schema: {
+      parameters: {
         type: "object",
         additionalProperties: false,
         required: ["codigo", "ultimos", "inicio", "fim"],
@@ -82,11 +84,12 @@ export function definirFerramentas(registro: Registro, cliente: ClienteDados): A
 
   if (cliente.modo === "gateway") {
     ferramentas.push({
+      type: "function",
       name: "tse_votacao",
       description:
         "Votos por candidato em eleições, a partir dos dados oficiais do TSE pré-carregados no banco. Soma todas as UFs quando uf é null. Use para afirmações como 'tive X milhões de votos' ou 'ganhei em tal estado'.",
       strict: true,
-      input_schema: {
+      parameters: {
         type: "object",
         additionalProperties: false,
         required: ["ano", "cargo", "uf", "nome", "turno"],

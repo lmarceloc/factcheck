@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
@@ -8,6 +7,7 @@ import { createSttSession } from "./stt.js";
 import { demoExtractor, demoVerifier } from "./demo.js";
 import { loadConfig } from "./config.js";
 import { createExtractor } from "./extractor.js";
+import { createOpenAI } from "./llm.js";
 import { Pipeline } from "./pipeline.js";
 import { Store } from "./store.js";
 import { FilePersistence } from "./store-file.js";
@@ -31,7 +31,7 @@ const store = new Store(config.debate, {
 const pipeline = config.DEMO_MODE
   ? new Pipeline(store, demoExtractor, demoVerifier, config)
   : (() => {
-      const client = new Anthropic();
+      const client = createOpenAI(config);
       return new Pipeline(store, createExtractor(client, config), createVerifier(client, config, dados), config);
     })();
 const app = createApp(store, pipeline, {

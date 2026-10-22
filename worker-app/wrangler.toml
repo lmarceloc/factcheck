@@ -1,10 +1,10 @@
 # App completo da checagem ao vivo no Cloudflare: site (painel + telão) e API.
 # O estado do debate vive num Durable Object (SQLite), que também roda a triagem
-# e as checagens com o Claude. As fontes oficiais vêm do Worker factcheck-dados.
+# e as checagens com o GPT-6 Luna (OpenAI). As fontes oficiais vêm do Worker factcheck-dados.
 #
 # Deploy (da raiz do projeto): npm run cf:deploy
 # Segredos (uma vez):
-#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put OPENAI_API_KEY
 #   npx wrangler secret put OPERATOR_TOKEN        (senha do painel: abra /?token=...)
 #   npx wrangler secret put DATA_GATEWAY_TOKEN    (o mesmo GATEWAY_TOKEN do factcheck-dados)
 #   npx wrangler secret put ASSEMBLYAI_API_KEY
@@ -34,11 +34,10 @@ binding = "DADOS"
 service = "factcheck-dados"
 
 [vars]
-EXTRACTION_MODEL = "claude-opus-5-5"
-VERIFICATION_MODEL = "claude-opus-5-5"
+EXTRACTION_MODEL = "gpt-6-luna"
+VERIFICATION_MODEL = "gpt-6-luna"
 EXTRACTION_EFFORT = "low"
 VERIFICATION_EFFORT = "medium"
-FAST_MODE = "false"
 MAX_CONCURRENT_CHECKS = "4"
 MAX_SEARCHES_PER_CHECK = "5"
 AUTO_PUBLISH = "false"

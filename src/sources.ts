@@ -1,7 +1,7 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import type OpenAI from "openai";
 import type { Source } from "./shared/types.js";
 
-type Block = Anthropic.Beta.BetaContentBlock;
+type Item = OpenAI.Responses.ResponseOutputItem;
 
 export interface SeenSource {
   url: string;
@@ -30,32 +30,31 @@ export class SourceCollector {
   private seen = new Map<string, SeenSource>();
   readonly queries: string[] = [];
 
-  addBlocks(blocks: Block[]) {
-    for (const block of blocks) this.addBlock(block);
+  addItems(items: Item[]) {
+    for (const item of items) this.addItem(item);
   }
 
-  addBlock(block: Block) {
-    switch (block.type) {
-      case "server_tool_use": {
-        const input = block.input as { query?: unknown; url?: unknown };
-        if (block.name === "web_search" && typeof input.query === "string") this.queries.push(input.query);
-        if (block.name === "web_fetch" && typeof input.url === "string") this.queries.push(`abrindo ${input.url}`);
+  addItem(item: Item) {
+    switch (item.type) {
+      case "web_search_call": {
+        const action = item.action;
+        if (action.type === "search") {
+          const queries = action.queries?.length ? action.queries : action.query ? [action.query] : [];
+          for (const q of queries) if (!this.queries.includes(q)) this.queries.push(q);
+          for (const src of action.sources ?? []) this.add(src.url, src.url);
+        } else if (action.type === "open_page" && action.url) {
+          this.queries.push(`abrindo ${action.url}`);
+          this.add(action.url, action.url);
+        }
         break;
       }
-      case "web_search_tool_result":
-        if (Array.isArray(block.content)) {
-          for (const result of block.content) this.add(result.url, result.title);
-        }
-        break;
-      case "web_fetch_tool_result":
-        if (block.content.type === "web_fetch_result") {
-          this.add(block.content.url, block.content.content.title ?? block.content.url);
-        }
-        break;
-      case "text":
-        for (const citation of block.citations ?? []) {
-          if (citation.type === "web_search_result_location") {
-            this.add(citation.url, citation.title ?? citation.url, citation.cited_text);
+      case "message":
+        for (const part of item.content) {
+          if (part.type !== "output_text") continue;
+          for (const ann of part.annotations) {
+            if (ann.type === "url_citation") {
+              this.add(ann.url, ann.title || ann.url, part.text.slice(ann.start_index, ann.end_index) || ann.title);
+            }
           }
         }
         break;
@@ -65,6 +64,7 @@ export class SourceCollector {
   private add(url: string, titulo: string, trecho?: string) {
     const key = normalizeUrl(url);
     const entry = this.seen.get(key) ?? { url, titulo, trechos: [] };
+    if (entry.titulo === entry.url && titulo !== url) entry.titulo = titulo;
     if (trecho && !entry.trechos.includes(trecho)) entry.trechos.push(trecho);
     this.seen.set(key, entry);
   }

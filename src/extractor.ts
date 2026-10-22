@@ -1,8 +1,7 @@
-import type Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import type OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { allSpeakers, type AppConfig } from "./config-core.js";
-import { baseParams, withFastFallback } from "./llm.js";
 import type { Claim, Segment } from "./shared/types.js";
 import { CATEGORIES } from "./shared/types.js";
 import { TEMAS } from "./shared/dados.js";
@@ -103,33 +102,31 @@ export type Extractor = (
   known: Claim[],
 ) => Promise<ExtractedClaim[]>;
 
-export function createExtractor(client: Anthropic, config: AppConfig): Extractor {
-  const system = extractionSystemPrompt(config);
+export function createExtractor(client: OpenAI, config: AppConfig): Extractor {
+  const instructions = extractionSystemPrompt(config);
   const speakerIds = new Set(allSpeakers(config.debate).map((s) => s.id));
 
   return async (chunk, context, known) => {
-    const response = await withFastFallback(config, (fast) =>
-      client.beta.messages.parse({
-        ...baseParams(config, fast),
-        model: config.EXTRACTION_MODEL,
-        max_tokens: 8000,
-        thinking: { type: "adaptive" },
-        output_config: { effort: config.EXTRACTION_EFFORT, format: betaZodOutputFormat(ExtractionSchema) },
-        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-        messages: [{ role: "user", content: extractionUserPrompt(config, chunk, context, known) }],
-      }),
-    );
+    const response = await client.responses.parse({
+      model: config.EXTRACTION_MODEL,
+      instructions,
+      input: extractionUserPrompt(config, chunk, context, known),
+      reasoning: { effort: config.EXTRACTION_EFFORT },
+      max_output_tokens: 8000,
+      text: { format: zodTextFormat(ExtractionSchema, "afirmacoes") },
+    });
 
-    if (response.stop_reason === "refusal") {
-      console.warn("[extração] recusada:", response.stop_details?.category ?? "sem categoria");
-      return [];
+    if (response.status === "incomplete") {
+      console.warn("[extração] resposta incompleta:", response.incomplete_details?.reason ?? "sem motivo");
     }
-    if (response.stop_reason === "max_tokens") {
-      console.warn("[extração] resposta cortada por max_tokens");
+    const parsed = response.output_parsed;
+    if (!parsed) {
+      console.warn("[extração] sem saída estruturada (recusa ou resposta vazia)");
+      return [];
     }
 
     const knownIds = new Set(known.map((c) => c.id));
-    return (response.parsed_output?.afirmacoes ?? []).map((c) => ({
+    return parsed.afirmacoes.map((c) => ({
       ...c,
       alvo: c.alvo && speakerIds.has(c.alvo) ? c.alvo : null,
       orador_id: c.orador_id && speakerIds.has(c.orador_id) ? c.orador_id : null,

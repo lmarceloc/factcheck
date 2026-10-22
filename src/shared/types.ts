@@ -2,7 +2,7 @@
 
 import type { Tema } from "./dados.js";
 
-/** Orador ainda não identificado: fala vinda da transmissão, o Claude descobre quem é. */
+/** Orador ainda não identificado: fala vinda da transmissão, o modelo descobre quem é. */
 export const AUTO_SPEAKER = "auto";
 
 export interface SpeakerInfo {
